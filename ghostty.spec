@@ -1,3 +1,4 @@
+%bcond simdutf 1
 %bcond test 1
 
 %global debug_package %{nil}
@@ -16,7 +17,19 @@ License:        MIT AND OFL-1.1
 URL:            https://github.com/ghostty-org/ghostty
 Source0:        {{{git_repo_archive}}}
 
-BuildRequires:  git zig ncurses freetype-devel oniguruma-devel gtk4-devel libadwaita-devel pandoc
+BuildRequires:  zig >= 0.13.0, zig < 0.14.0
+BuildRequires:  git, pandoc, fdupes, desktop-file-utils
+BuildRequires:  pkgconfig(fontconfig), pkgconfig(freetype2), pkgconfig(harfbuzz)
+BuildRequires:  pkgconfig(glib-2.0), pkgconfig(gtk4), pkgconfig(libadwaita-1)
+BuildRequires:  pkgconfig(oniguruma), pkgconfig(libpng), pkgconfig(zlib-ng)
+
+%if %{with simdutf}
+BuildRequires: pkgconfig(simdutf) >= 4.0.9
+%endif
+
+%if %{with test}
+BuildRequires:  hostname
+%endif
 
 Requires:       %{name}-terminfo = %{version}-%{release}
 Requires:       %{name}-shell-integration = %{version}-%{release}
@@ -68,21 +81,18 @@ ZIG_GLOBAL_CACHE_DIR=/tmp/offline-cache ./nix/build-support/fetch-zig-cache.sh
 
 %build
 %set_build_flags
-zig build \
-    --system /tmp/offline-cache/p \
-    -Doptimize=ReleaseFast \
-    -Demit-docs \
-    -Dcpu=baseline \
-    -Dversion-string={{{git_custom_internal_version}}}
+%global _build_flags %{?with_simdutf:-fsys=simdutf} --system /tmp/offline-cache/p -Dpie -Doptimize=ReleaseFast -Demit-docs -Dcpu=baseline -Dtarget=native -Dversion-string={{{git_custom_internal_version}}}
+zig build %{_build_flags}
 
 %install
-cp -r zig-out %{buildroot}%{_prefix}
+zig build install --prefix %{buildroot}/%{_prefix} %{_build_flags}
+%fdupes %{buildroot}/${_datadir}
 
 %check
 desktop-file-validate %{buildroot}/%{_datadir}/applications/%{project_id}.desktop
 
 %if %{with test}
-zig build test
+zig build test %{_build_flags}
 %endif
 
 %files
@@ -122,6 +132,7 @@ zig build test
 
 %files doc
 %dir %{_datadir}/%{name}
+%docdir %{_datadir}/%{name}/doc
 %license LICENSE
 %doc README.md PACKAGING.md CONTRIBUTING.md TODO.md
 %{_datadir}/%{name}/doc/%{name}.{1,5}.{md,html}
