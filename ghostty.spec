@@ -79,6 +79,8 @@ zig build \
 cp -r zig-out %{buildroot}%{_prefix}
 
 %check
+desktop-file-validate %{buildroot}/%{_datadir}/applications/%{project_id}.desktop
+
 %if %{with test}
 zig build test
 %endif
