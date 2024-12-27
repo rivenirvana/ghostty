@@ -1,6 +1,10 @@
 %bcond simdutf 1
 %bcond test 1
 
+%if 0%{?fedora} == 40
+%bcond simdutf 0
+%endif
+
 %global debug_package %{nil}
 %global project_id          com.mitchellh.ghostty
 %global project_description Ghostty is a terminal emulator that differentiates itself by being fast, \
