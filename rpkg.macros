@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# backward compat since cached function went away
+# https://pagure.io/rpkg-util/c/bb62554c62fd52224709e861c2353a5c15b50220?branch=master
+function cached {
+    declare v=${OUTPUT[$1]}
+    [[ -n $v ]] && echo -n "$v"
+}
+
+function git_custom_describe {
+    cached git_custom_describe && return
+
+    declare describe tag commits affix build
+    describe=$(git describe --first-parent origin/main)
+    read -r tag commits build <<<"${describe//-/ }"
+
+    [[ -z "${commits}" ]] && commits='0'
+    if [[ "${commits}" == '0' ]]; then
+        tag="${tag:1}"
+        affix='stable'
+    else
+        tag="$(grep -oP '\.version\s*=\s*"\K[^\"]+' build.zig.zon)"
+        affix='dev'
+    fi
+
+    output "${tag} ${commits} ${affix} ${build}"
+}
+
+function git_custom_package_version {
+    cached git_custom_package_version && return
+
+    declare tag commits affix build
+    read -r tag commits affix build <<<"$(git_custom_describe)"
+
+    output "${tag}~${affix}.${commits}+${build}"
+}
+
+function git_custom_internal_version {
+    cached git_custom_internal_version && return
+
+    declare tag commits affix build
+    read -r tag commits affix build <<<"$(git_custom_describe)"
+    build="${build:1:-1}"
+
+    output "${tag}-${affix}+${build}"
+}
+
+function git_custom_release {
+    cached git_custom_release && return
+
+    # find last merge
+    declare last_merge rest
+    read -r last_merge rest <<<"$(git log --merges --oneline -n1)"
+    [[ -n $last_merge ]] || abort "failed to find last merge"
+
+    # count commits since last merge; might be zero
+    declare release
+    release=$(git log --oneline HEAD "^$last_merge" | wc -l)
+    release=$((release + 1))
+
+    output "$release"
+}
+
+function git_custom_date {
+    cached git_custom_date && return
+    output "$(date +'%a %b %d %Y')"
+}
