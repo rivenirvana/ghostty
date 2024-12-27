@@ -10,39 +10,39 @@ function cached {
 function git_custom_describe {
     cached git_custom_describe && return
 
-    declare describe tag commits affix build
-    describe=$(git describe --first-parent origin/main)
-    read -r tag commits build <<<"${describe//-/ }"
+    declare describe tag commits affix hash
+    describe=$(git describe --always --long --first-parent origin/main)
+    read -r tag commits hash <<<"${describe//-/ }"
 
-    [[ -z "${commits}" ]] && commits='0'
-    if [[ "${commits}" == '0' ]]; then
-        tag="${tag:1}"
-        affix='stable'
-    else
+    if [[ "${tag}" == 'tip' ]]; then
         tag="$(grep -oP '\.version\s*=\s*"\K[^\"]+' build.zig.zon)"
+        affix='tip'
+    else
+        tag="${tag:1}"
         affix='dev'
     fi
+    [[ -z "${commits}" ]] && commits='0'
+    [[ -z "${hash}" ]] && hash='g00000000'
 
-    output "${tag} ${commits} ${affix} ${build}"
+    output "${tag} ${commits} ${affix} ${hash}"
 }
 
 function git_custom_package_version {
     cached git_custom_package_version && return
 
-    declare tag commits affix build
-    read -r tag commits affix build <<<"$(git_custom_describe)"
+    declare tag commits affix hash
+    read -r tag commits affix hash <<<"$(git_custom_describe)"
 
-    output "${tag}~${affix}.${commits}+${build}"
+    output "${tag}~${affix}.${commits}+${hash}"
 }
 
 function git_custom_internal_version {
     cached git_custom_internal_version && return
 
-    declare tag commits affix build
-    read -r tag commits affix build <<<"$(git_custom_describe)"
-    build="${build:1:-1}"
+    declare tag commits affix hash
+    read -r tag commits affix hash <<<"$(git_custom_describe)"
 
-    output "${tag}-${affix}+${build}"
+    output "${tag}-${affix}+${hash:1:-1}"
 }
 
 function git_custom_release {
