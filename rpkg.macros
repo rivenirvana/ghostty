@@ -11,18 +11,12 @@ function git_custom_describe {
     cached git_custom_describe && return
 
     declare describe tag commits affix hash
-    describe=$(git describe --always --long --first-parent origin/main)
+    describe=$(git describe --always --long --first-parent --abbrev=8 --exclude=tip origin/main)
     read -r tag commits hash <<<"${describe//-/ }"
 
-    if [[ "${tag}" == 'tip' ]]; then
-        tag="$(grep -oP '\.version\s*=\s*"\K[^\"]+' build.zig.zon)"
-        affix='tip'
-    else
-        tag="${tag:1}"
-        affix='dev'
-    fi
-    [[ -z "${commits}" ]] && commits='0'
-    [[ -z "${hash}" ]] && hash='g00000000'
+    tag="$(grep -oP '\.version\s*=\s*"\K[^\"]+' build.zig.zon)"
+    affix='dev'
+    [[ ${#hash} -eq 9 ]] && hash="${hash:1}"
 
     output "${tag} ${commits} ${affix} ${hash}"
 }
@@ -42,7 +36,7 @@ function git_custom_internal_version {
     declare tag commits affix hash
     read -r tag commits affix hash <<<"$(git_custom_describe)"
 
-    output "${tag}-${affix}+${hash:1:-1}"
+    output "${tag}-${affix}+${hash::-1}"
 }
 
 function git_custom_release {
