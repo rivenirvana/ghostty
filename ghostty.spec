@@ -19,7 +19,7 @@ Release:        {{{git_custom_release}}}%{?dist}
 Summary:        Fast, native, feature-rich terminal emulator pushing modern features
 
 License:        MIT AND OFL-1.1
-URL:            https://github.com/ghostty-org/ghostty
+URL:            https://ghostty.org/
 Source0:        {{{git_repo_archive}}}
 
 BuildRequires:  zig >= 0.13.0, zig < 0.14.0
