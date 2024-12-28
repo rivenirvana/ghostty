@@ -38,8 +38,8 @@ BuildRequires:  hostname
 
 Requires:       %{name}-terminfo = %{version}-%{release}
 Requires:       %{name}-shell-integration = %{version}-%{release}
-Recommends:     %{name}-extras = %{version}-%{release}
-Recommends:     %{name}-doc = %{version}-%{release}
+Suggests:       %{name}-extras = %{version}-%{release}
+Suggests:       %{name}-doc = %{version}-%{release}
 
 %description
 %{project_description}
