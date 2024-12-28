@@ -10,12 +10,18 @@ function cached {
 function git_custom_describe {
     cached git_custom_describe && return
 
-    declare describe tag commits affix hash
+    declare describe devtag tag commits affix hash
     describe=$(git describe --always --long --first-parent --abbrev=8 --exclude=tip origin/main)
     read -r tag commits hash <<<"${describe//-/ }"
 
-    tag="$(grep -oP '\.version\s*=\s*"\K[^\"]+' build.zig.zon)"
-    affix='dev'
+    devtag="$(grep -oP '\.version\s*=\s*"\K[^\"]+' build.zig.zon)"
+    tag="${tag:1}"
+    if [[ "${tag}" == "${devtag}" ]]; then
+        affix='stable'
+    else
+        tag="${devtag}"
+        affix='dev'
+    fi
     [[ ${#hash} -eq 9 ]] && hash="${hash:1}"
 
     output "${tag} ${commits} ${affix} ${hash}"
