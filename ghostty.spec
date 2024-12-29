@@ -90,11 +90,11 @@ ZIG_GLOBAL_CACHE_DIR=/tmp/offline-cache ./nix/build-support/fetch-zig-cache.sh
 zig build %{_build_options}
 
 %install
-zig build install --prefix %{buildroot}/%{_prefix} %{_build_options}
-%fdupes %{buildroot}/${_datadir}
+zig build install --prefix %{buildroot}%{_prefix} %{_build_options}
+%fdupes %{buildroot}%{_datadir}
 
 %check
-desktop-file-validate %{buildroot}/%{_datadir}/applications/%{project_id}.desktop
+desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 
 %if %{with test}
 zig build test %{_build_options}
