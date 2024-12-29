@@ -86,18 +86,18 @@ ZIG_GLOBAL_CACHE_DIR=/tmp/offline-cache ./nix/build-support/fetch-zig-cache.sh
 
 %build
 %set_build_flags
-%global _build_flags %{?with_simdutf:-fsys=simdutf} --system /tmp/offline-cache/p -Dpie -Doptimize=ReleaseFast -Demit-docs -Dcpu=baseline -Dtarget=native -Dversion-string={{{git_custom_internal_version}}}
-zig build %{_build_flags}
+%global _build_options %{?with_simdutf:-fsys=simdutf} --system /tmp/offline-cache/p -Dpie=true -Doptimize=ReleaseFast -Dcpu=baseline -Dtarget=native -Demit-docs=true -Dgtk-x11=true -Dversion-string={{{git_custom_internal_version}}} --summary all
+zig build %{_build_options}
 
 %install
-zig build install --prefix %{buildroot}/%{_prefix} %{_build_flags}
+zig build install --prefix %{buildroot}/%{_prefix} %{_build_options}
 %fdupes %{buildroot}/${_datadir}
 
 %check
 desktop-file-validate %{buildroot}/%{_datadir}/applications/%{project_id}.desktop
 
 %if %{with test}
-zig build test %{_build_flags}
+zig build test %{_build_options}
 %endif
 
 %files
