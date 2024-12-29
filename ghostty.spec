@@ -107,7 +107,7 @@ zig build test %{_build_options}
 %{_mandir}/man{1,5}/%{name}.*
 %{_datadir}/applications/%{project_id}.desktop
 %{_datadir}/kio/servicemenus/%{project_id}.desktop
-%{_datadir}/icons/hicolor/*/apps/%{project_id}.png
+%{_iconsdir}/hicolor/*/apps/%{project_id}.png
 %{_datadir}/%{name}/themes/*
 
 %files terminfo
