@@ -140,6 +140,8 @@ Enhances:       %{name} = %{version}-%{release}
 
 %prep
 {{{git_repo_setup_macro}}}
+
+%build
 ZIG_GLOBAL_CACHE_DIR=/tmp/offline-cache ./nix/build-support/fetch-zig-cache.sh
 
 %install
