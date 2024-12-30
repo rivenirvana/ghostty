@@ -130,13 +130,9 @@ Enhances:       %{name} = %{version}-%{release}
 {{{git_repo_setup_macro}}}
 ZIG_GLOBAL_CACHE_DIR=/tmp/offline-cache ./nix/build-support/fetch-zig-cache.sh
 
-%build
-%set_build_flags
-%global _build_options %{?with_simdutf:-fsys=simdutf} --system /tmp/offline-cache/p -Dpie=true -Doptimize=ReleaseFast -Dcpu=baseline -Dtarget=native -Demit-docs=true -Dgtk-x11=true -Dversion-string={{{git_custom_internal_version}}} --summary all
-zig build %{_build_options}
-
 %install
-zig build install --prefix %{buildroot}%{_prefix} %{_build_options}
+%global _build_options %{?with_simdutf:-fsys=simdutf} --prefix %{buildroot}%{_prefix} --system /tmp/offline-cache/p -Doptimize=ReleaseFast -Dcpu=baseline -Dtarget=native -Dpie=true -Dgtk-x11=true -Demit-docs=true -Dversion-string={{{git_custom_internal_version}}}
+zig build install --summary all %{_build_options}
 %fdupes %{buildroot}%{_datadir}
 
 %check
