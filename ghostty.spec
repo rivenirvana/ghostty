@@ -41,6 +41,7 @@ Recommends:     %{name}-shell-integration = %{version}-%{release}
 Suggests:       %{name}-bash-completion = %{version}-%{release}
 Suggests:       %{name}-fish-completion = %{version}-%{release}
 Suggests:       %{name}-zsh-completion = %{version}-%{release}
+Suggests:       %{name}-themes = %{version}-%{release}
 Suggests:       %{name}-extras = %{version}-%{release}
 Suggests:       %{name}-doc = %{version}-%{release}
 
@@ -105,6 +106,17 @@ Supplements:    (%{name} = %{version}-%{release} and zsh)
 
 %{summary}.
 
+%package        themes
+Summary:        Themes for %{name}
+BuildArch:      noarch
+Requires:       %{name} = %{version}-%{release}
+Supplements:    %{name} = %{version}-%{release}
+
+%description    themes
+%{project_description}
+
+%{summary}.
+
 %package        extras
 Summary:        Extras for %{name}
 BuildArch:      noarch
@@ -150,7 +162,6 @@ zig build test %{_build_options}
 %{_datadir}/applications/%{project_id}.desktop
 %{_datadir}/kio/servicemenus/%{project_id}.desktop
 %{_iconsdir}/hicolor/*/apps/%{project_id}.png
-%{_datadir}/%{name}/themes/*
 
 %files terminfo
 %{_datadir}/terminfo/g/%{name}
@@ -174,6 +185,10 @@ zig build test %{_build_options}
 
 %files zsh-completion
 %{_datadir}/zsh/site-functions/_%{name}
+
+%files themes
+%dir %{_datadir}/%{name}
+%{_datadir}/%{name}/themes/*
 
 %files extras
 %{_datadir}/bat/syntaxes/%{name}.sublime-syntax
