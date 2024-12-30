@@ -36,8 +36,11 @@ BuildRequires: pkgconfig(simdutf) >= 4.0.9
 BuildRequires:  hostname
 %endif
 
-Requires:       %{name}-terminfo = %{version}-%{release}
-Requires:       %{name}-shell-integration = %{version}-%{release}
+Recommends:     %{name}-terminfo = %{version}-%{release}
+Recommends:     %{name}-shell-integration = %{version}-%{release}
+Suggests:       %{name}-bash-completion = %{version}-%{release}
+Suggests:       %{name}-fish-completion = %{version}-%{release}
+Suggests:       %{name}-zsh-completion = %{version}-%{release}
 Suggests:       %{name}-extras = %{version}-%{release}
 Suggests:       %{name}-doc = %{version}-%{release}
 
@@ -61,6 +64,33 @@ BuildArch:      noarch
 %{project_description}
 
 Shell integration scripts for %{name}.
+
+%package        bash-completion
+Summary:        Bash completion for %{name}
+BuildArch:      noarch
+
+%description    bash-completion
+%{project_description}
+
+Bash completion for %{name}.
+
+%package        fish-completion
+Summary:        Fish completion for %{name}
+BuildArch:      noarch
+
+%description    fish-completion
+%{project_description}
+
+Fish completion for %{name}.
+
+%package        zsh-completion
+Summary:        Zsh completion for %{name}
+BuildArch:      noarch
+
+%description    zsh-completion
+%{project_description}
+
+Zsh completion for %{name}.
 
 %package        extras
 Summary:        Extras for %{name}
@@ -119,15 +149,21 @@ zig build test %{_build_options}
 %files shell-integration
 %dir %{_datadir}/%{name}
 %license LICENSE
-%{_datadir}/bash-completion/completions/%{name}.bash
-%{_datadir}/fish/vendor_completions.d/%{name}.fish
-%{_datadir}/zsh/site-functions/_%{name}
 %{_datadir}/%{name}/shell-integration/bash/bash-preexec.sh
 %{_datadir}/%{name}/shell-integration/bash/%{name}.bash
 %{_datadir}/%{name}/shell-integration/elvish/lib/%{name}-integration.elv
 %{_datadir}/%{name}/shell-integration/fish/vendor_conf.d/%{name}-shell-integration.fish
 %{_datadir}/%{name}/shell-integration/zsh/.zshenv
 %{_datadir}/%{name}/shell-integration/zsh/%{name}-integration
+
+%files bash-completion
+%{_datadir}/bash-completion/completions/%{name}.bash
+
+%files fish-completion
+%{_datadir}/fish/vendor_completions.d/%{name}.fish
+
+%files zsh-completion
+%{_datadir}/zsh/site-functions/_%{name}
 
 %files extras
 %license LICENSE
