@@ -110,6 +110,7 @@ Supplements:    (%{name} = %{version}-%{release} and zsh)
 
 %package        themes
 Summary:        Themes for %{name}
+License:        MIT
 BuildArch:      noarch
 Requires:       %{name} = %{version}-%{release}
 Supplements:    %{name} = %{version}-%{release}
@@ -194,6 +195,7 @@ zig build test %{_build_options}
 %{_datadir}/zsh/site-functions/_%{name}
 
 %files themes
+%license LICENSE
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/themes/*
 
