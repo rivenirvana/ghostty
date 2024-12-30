@@ -7,6 +7,21 @@ function cached {
     [[ -n $v ]] && echo -n "$v"
 }
 
+function zig_min_version {
+    cached zig_min_version && return
+
+    output "$(grep -oP 'const required_zig = "\K[^"]+' build.zig)"
+}
+
+function zig_max_version {
+    cached zig_max_version && return
+
+    declare major minor patch
+    read -r major minor patch <<<"$(zig_min_version | tr '.' ' ')"
+
+    output "${major}.${minor}.$((patch + 10))"
+}
+
 function git_custom_describe {
     cached git_custom_describe && return
 
@@ -56,9 +71,8 @@ function git_custom_release {
     # count commits since last merge; might be zero
     declare release
     release=$(git log --oneline HEAD "^$last_merge" | wc -l)
-    release=$((release + 1))
 
-    output "$release"
+    output "$((release + 1))"
 }
 
 function git_custom_date {

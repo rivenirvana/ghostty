@@ -22,7 +22,7 @@ License:        MIT AND OFL-1.1
 URL:            https://ghostty.org/
 Source0:        {{{git_repo_archive}}}
 
-BuildRequires:  zig >= 0.13.0, zig < 0.14.0
+BuildRequires:  zig >= {{{zig_min_version}}}, zig < {{{zig_max_version}}}
 BuildRequires:  git, pandoc, fdupes, desktop-file-utils
 BuildRequires:  pkgconfig(fontconfig), pkgconfig(freetype2), pkgconfig(harfbuzz)
 BuildRequires:  pkgconfig(glib-2.0), pkgconfig(gtk4), pkgconfig(libadwaita-1)
