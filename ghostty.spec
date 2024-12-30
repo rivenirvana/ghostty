@@ -50,6 +50,7 @@ Suggests:       %{name}-doc = %{version}-%{release}
 
 %package        terminfo
 Summary:        Terminfo files for %{name}
+License:        MIT
 BuildArch:      noarch
 Requires:       %{name} = %{version}-%{release}
 Supplements:    %{name} = %{version}-%{release}
@@ -61,6 +62,7 @@ Supplements:    %{name} = %{version}-%{release}
 
 %package        shell-integration
 Summary:        Shell integration scripts for %{name}
+License:        MIT
 BuildArch:      noarch
 Requires:       %{name} = %{version}-%{release}
 Supplements:    %{name} = %{version}-%{release}
@@ -119,6 +121,7 @@ Supplements:    %{name} = %{version}-%{release}
 
 %package        extras
 Summary:        Extras for %{name}
+License:        MIT
 BuildArch:      noarch
 Requires:       %{name} = %{version}-%{release}
 Supplements:    %{name} = %{version}-%{release}
@@ -130,6 +133,7 @@ Supplements:    %{name} = %{version}-%{release}
 
 %package        doc
 Summary:        Documentation for %{name}
+License:        MIT
 BuildArch:      noarch
 Enhances:       %{name} = %{version}-%{release}
 
@@ -157,8 +161,7 @@ zig build test %{_build_options}
 %endif
 
 %files
-%dir %{_datadir}/%{name}
-%license LICENSE
+%license LICENSE src/font/res/OFL.txt
 %{_bindir}/%{name}
 %{_mandir}/man{1,5}/%{name}.*
 %{_datadir}/applications/%{project_id}.desktop
@@ -166,11 +169,13 @@ zig build test %{_build_options}
 %{_iconsdir}/hicolor/*/apps/%{project_id}.png
 
 %files terminfo
+%license LICENSE
 %{_datadir}/terminfo/g/%{name}
 %{_datadir}/terminfo/x/xterm-%{name}
 %{_datadir}/terminfo/%{name}.term{cap,info}
 
 %files shell-integration
+%license LICENSE
 %dir %{_datadir}/%{name}
 %{_datadir}/%{name}/shell-integration/bash/bash-preexec.sh
 %{_datadir}/%{name}/shell-integration/bash/%{name}.bash
@@ -193,14 +198,16 @@ zig build test %{_build_options}
 %{_datadir}/%{name}/themes/*
 
 %files extras
+%license LICENSE
 %{_datadir}/bat/syntaxes/%{name}.sublime-syntax
 %{_datadir}/nvim/site/{ftdetect,ftplugin,syntax}/%{name}.vim
 %{_datadir}/vim/vimfiles/{ftdetect,ftplugin,syntax}/%{name}.vim
 
 %files doc
-%dir %{_datadir}/%{name}
+%license LICENSE
 %docdir %{_datadir}/%{name}/doc
 %doc README.md PACKAGING.md CONTRIBUTING.md TODO.md
+%dir %{_datadir}/%{name}
 %{_datadir}/%{name}/doc/%{name}.{1,5}.{md,html}
 
 %changelog
