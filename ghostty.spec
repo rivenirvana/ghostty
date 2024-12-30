@@ -65,7 +65,7 @@ Summary:        Shell integration scripts for %{name}
 License:        MIT
 BuildArch:      noarch
 Requires:       %{name} = %{version}-%{release}
-Supplements:    %{name} = %{version}-%{release}
+Supplements:    (%{name} = %{version}-%{release} and (bash or fish or zsh or elvish))
 
 %description    shell-integration
 %{project_description}
