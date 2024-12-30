@@ -50,6 +50,8 @@ Suggests:       %{name}-doc = %{version}-%{release}
 %package        terminfo
 Summary:        Terminfo files for %{name}
 BuildArch:      noarch
+Requires:       %{name} = %{version}-%{release}
+Supplements:    %{name} = %{version}-%{release}
 
 %description    terminfo
 %{project_description}
@@ -59,6 +61,8 @@ BuildArch:      noarch
 %package        shell-integration
 Summary:        Shell integration scripts for %{name}
 BuildArch:      noarch
+Requires:       %{name} = %{version}-%{release}
+Supplements:    %{name} = %{version}-%{release}
 
 %description    shell-integration
 %{project_description}
@@ -68,6 +72,9 @@ BuildArch:      noarch
 %package        bash-completion
 Summary:        Bash completion for %{name}
 BuildArch:      noarch
+Requires:       %{name} = %{version}-%{release}
+Requires:       bash-completion
+Supplements:    (%{name} = %{version}-%{release} and bash-completion)
 
 %description    bash-completion
 %{project_description}
@@ -77,6 +84,9 @@ BuildArch:      noarch
 %package        fish-completion
 Summary:        Fish completion for %{name}
 BuildArch:      noarch
+Requires:       %{name} = %{version}-%{release}
+Requires:       fish
+Supplements:    (%{name} = %{version}-%{release} and fish)
 
 %description    fish-completion
 %{project_description}
@@ -86,6 +96,9 @@ BuildArch:      noarch
 %package        zsh-completion
 Summary:        Zsh completion for %{name}
 BuildArch:      noarch
+Requires:       %{name} = %{version}-%{release}
+Requires:       zsh
+Supplements:    (%{name} = %{version}-%{release} and zsh)
 
 %description    zsh-completion
 %{project_description}
@@ -95,6 +108,8 @@ BuildArch:      noarch
 %package        extras
 Summary:        Extras for %{name}
 BuildArch:      noarch
+Requires:       %{name} = %{version}-%{release}
+Supplements:    %{name} = %{version}-%{release}
 
 %description    extras
 %{project_description}
@@ -104,6 +119,7 @@ BuildArch:      noarch
 %package        doc
 Summary:        Documentation for %{name}
 BuildArch:      noarch
+Enhances:       %{name} = %{version}-%{release}
 
 %description    doc
 %{project_description}
@@ -141,14 +157,12 @@ zig build test %{_build_options}
 %{_datadir}/%{name}/themes/*
 
 %files terminfo
-%license LICENSE
 %{_datadir}/terminfo/g/%{name}
 %{_datadir}/terminfo/x/xterm-%{name}
 %{_datadir}/terminfo/%{name}.term{cap,info}
 
 %files shell-integration
 %dir %{_datadir}/%{name}
-%license LICENSE
 %{_datadir}/%{name}/shell-integration/bash/bash-preexec.sh
 %{_datadir}/%{name}/shell-integration/bash/%{name}.bash
 %{_datadir}/%{name}/shell-integration/elvish/lib/%{name}-integration.elv
@@ -166,7 +180,6 @@ zig build test %{_build_options}
 %{_datadir}/zsh/site-functions/_%{name}
 
 %files extras
-%license LICENSE
 %{_datadir}/bat/syntaxes/%{name}.sublime-syntax
 %{_datadir}/nvim/site/{ftdetect,ftplugin,syntax}/%{name}.vim
 %{_datadir}/vim/vimfiles/{ftdetect,ftplugin,syntax}/%{name}.vim
@@ -174,7 +187,6 @@ zig build test %{_build_options}
 %files doc
 %dir %{_datadir}/%{name}
 %docdir %{_datadir}/%{name}/doc
-%license LICENSE
 %doc README.md PACKAGING.md CONTRIBUTING.md TODO.md
 %{_datadir}/%{name}/doc/%{name}.{1,5}.{md,html}
 
