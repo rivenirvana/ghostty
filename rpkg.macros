@@ -11,7 +11,7 @@ function git_custom_describe {
     cached git_custom_describe && return
 
     declare describe devtag tag commits affix hash
-    describe=$(git describe --always --long --first-parent --abbrev=8 --exclude=tip origin/main)
+    describe=$(git describe --always --long --first-parent --abbrev=7 --exclude=tip origin/main)
     read -r tag commits hash <<<"${describe//-/ }"
 
     devtag="$(grep -oP '\.version\s*=\s*"\K[^\"]+' build.zig.zon)"
@@ -22,7 +22,7 @@ function git_custom_describe {
         tag="${devtag}"
         affix='dev'
     fi
-    [[ ${#hash} -eq 9 ]] && hash="${hash:1}"
+    [[ ${#hash} -eq 8 ]] && hash="${hash:1}"
 
     output "${tag} ${commits} ${affix} ${hash}"
 }
@@ -42,7 +42,7 @@ function git_custom_internal_version {
     declare tag commits affix hash
     read -r tag commits affix hash <<<"$(git_custom_describe)"
 
-    output "${tag}-${affix}+${hash::-1}"
+    output "${tag}-${affix}+${hash}"
 }
 
 function git_custom_release {
