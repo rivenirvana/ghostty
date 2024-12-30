@@ -54,7 +54,7 @@ BuildArch:      noarch
 %description    terminfo
 %{project_description}
 
-Terminfo files for %{name}.
+%{summary}.
 
 %package        shell-integration
 Summary:        Shell integration scripts for %{name}
@@ -63,7 +63,7 @@ BuildArch:      noarch
 %description    shell-integration
 %{project_description}
 
-Shell integration scripts for %{name}.
+%{summary}.
 
 %package        bash-completion
 Summary:        Bash completion for %{name}
@@ -72,7 +72,7 @@ BuildArch:      noarch
 %description    bash-completion
 %{project_description}
 
-Bash completion for %{name}.
+%{summary}.
 
 %package        fish-completion
 Summary:        Fish completion for %{name}
@@ -81,7 +81,7 @@ BuildArch:      noarch
 %description    fish-completion
 %{project_description}
 
-Fish completion for %{name}.
+%{summary}.
 
 %package        zsh-completion
 Summary:        Zsh completion for %{name}
@@ -90,7 +90,7 @@ BuildArch:      noarch
 %description    zsh-completion
 %{project_description}
 
-Zsh completion for %{name}.
+%{summary}.
 
 %package        extras
 Summary:        Extras for %{name}
@@ -99,7 +99,7 @@ BuildArch:      noarch
 %description    extras
 %{project_description}
 
-Extras for %{name}.
+%{summary}.
 
 %package        doc
 Summary:        Documentation for %{name}
@@ -108,7 +108,7 @@ BuildArch:      noarch
 %description    doc
 %{project_description}
 
-Documentation for %{name}.
+%{summary}.
 
 %prep
 {{{git_repo_setup_macro}}}
