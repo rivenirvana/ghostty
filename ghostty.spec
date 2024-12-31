@@ -36,8 +36,23 @@ BuildRequires: pkgconfig(simdutf) >= 4.0.9
 BuildRequires:  hostname
 %endif
 
-Recommends:     %{name}-terminfo = %{version}-%{release}
-Recommends:     %{name}-shell-integration = %{version}-%{release}
+%if %{with simdutf}
+BuildRequires:  pkgconfig(simdutf) >= 4.0.9
+%else
+Provides:       bundled(simdutf) = 4.0.9
+%endif
+
+Provides:      bundled(font(CodeNewRoman)), bundled(font(CozetteVector))
+Provides:      bundled(font(Inconsolata)), bundled(font(JuliaMono))
+Provides:      bundled(font(JetBrainsMonoNerdFont)), bundled(font(JetBrainsMonoNoNF))
+Provides:      bundled(font(KawkabMono)), bundled(font(Lilex))
+Provides:      bundled(font(MonaspaceNeon)), bundled(font(NotoColorEmoji))
+Provides:      bundled(font(NotoEmoji))
+Provides:      bundled(glslang) = 14.2.0
+Provides:      bundled(spirv-cross) = 13.1.1
+
+Suggests:       %{name}-terminfo = %{version}-%{release}
+Suggests:       %{name}-shell-integration = %{version}-%{release}
 Suggests:       %{name}-bash-completion = %{version}-%{release}
 Suggests:       %{name}-fish-completion = %{version}-%{release}
 Suggests:       %{name}-zsh-completion = %{version}-%{release}
@@ -53,6 +68,7 @@ Summary:        Terminfo files for %{name}
 License:        MIT
 BuildArch:      noarch
 Requires:       %{name} = %{version}-%{release}
+Requires:       ncurses-base
 Supplements:    %{name} = %{version}-%{release}
 
 %description    terminfo
@@ -65,6 +81,7 @@ Summary:        Shell integration scripts for %{name}
 License:        MIT
 BuildArch:      noarch
 Requires:       %{name} = %{version}-%{release}
+Requires:       (bash or fish or zsh or elvish)
 Supplements:    (%{name} = %{version}-%{release} and (bash or fish or zsh or elvish))
 
 %description    shell-integration
@@ -164,10 +181,10 @@ zig build test %{_build_options}
 %files
 %license LICENSE src/font/res/OFL.txt
 %{_bindir}/%{name}
-%{_mandir}/man{1,5}/%{name}.*
 %{_datadir}/applications/%{project_id}.desktop
 %{_datadir}/kio/servicemenus/%{project_id}.desktop
 %{_iconsdir}/hicolor/*/apps/%{project_id}.png
+%{_mandir}/man{1,5}/%{name}.*
 
 %files terminfo
 %license LICENSE
@@ -214,4 +231,4 @@ zig build test %{_build_options}
 
 %changelog
 * {{{git_custom_date}}} Arvin Verain <arvinverain@proton.me> - {{{git_custom_package_version}}}-{{{git_custom_release}}}
-- Nightly build from git main
+- Tip build from git main
