@@ -28,10 +28,6 @@ BuildRequires:  pkgconfig(fontconfig), pkgconfig(freetype2), pkgconfig(harfbuzz)
 BuildRequires:  pkgconfig(glib-2.0), pkgconfig(gtk4), pkgconfig(libadwaita-1)
 BuildRequires:  pkgconfig(oniguruma), pkgconfig(libpng), pkgconfig(zlib-ng)
 
-%if %{with simdutf}
-BuildRequires: pkgconfig(simdutf) >= 4.0.9
-%endif
-
 %if %{with test}
 BuildRequires:  hostname
 %endif
