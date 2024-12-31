@@ -22,8 +22,11 @@ License:        MIT AND OFL-1.1
 URL:            https://ghostty.org/
 Source0:        {{{git_repo_archive}}}
 
+ExclusiveArch:  %{zig_arches}
+ExcludeArch:    i686
+
 BuildRequires:  zig >= {{{zig_min_version}}}, zig < {{{zig_max_version}}}
-BuildRequires:  git, pandoc, fdupes, desktop-file-utils
+BuildRequires:  zig-rpm-macros, git, pandoc, fdupes, desktop-file-utils
 BuildRequires:  pkgconfig(fontconfig), pkgconfig(freetype2), pkgconfig(harfbuzz)
 BuildRequires:  pkgconfig(glib-2.0), pkgconfig(gtk4), pkgconfig(libadwaita-1)
 BuildRequires:  pkgconfig(oniguruma), pkgconfig(libpng), pkgconfig(zlib-ng)
@@ -160,18 +163,22 @@ Enhances:       %{name} = %{version}-%{release}
 {{{git_repo_setup_macro}}}
 
 %build
-ZIG_GLOBAL_CACHE_DIR=/tmp/offline-cache ./nix/build-support/fetch-zig-cache.sh
+%zig_build --fetch
+%zig_fetch git+https://github.com/zigimg/zigimg#3a667bdb3d7f0955a5a51c8468eac83210c1439e
+%zig_fetch git+https://github.com/mitchellh/libxev#f6a672a78436d8efee1aa847a43a900ad773618b
+
+%global _build_options --summary all -Doptimize=ReleaseFast -Dpie=true -Dgtk-x11=true -Demit-docs=true -Dversion-string={{{git_custom_internal_version}}} %{?with_simdutf:-fsys=simdutf}
+%zig_build %{_build_options}
 
 %install
-%global _build_options %{?with_simdutf:-fsys=simdutf} --prefix %{buildroot}%{_prefix} --system /tmp/offline-cache/p -Doptimize=ReleaseFast -Dcpu=baseline -Dtarget=native -Dpie=true -Dgtk-x11=true -Demit-docs=true -Dversion-string={{{git_custom_internal_version}}}
-zig build install --summary all %{_build_options}
+%zig_install %{_build_options}
 %fdupes %{buildroot}%{_datadir}
 
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 
 %if %{with test}
-zig build test %{_build_options}
+%zig_test %{_build_options}
 %endif
 
 %files
