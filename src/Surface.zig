@@ -853,11 +853,8 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
         },
 
         .color_change => |change| {
-            // On any color change, we have to report for mode 2031
-            // if it is enabled.
-            self.reportColorScheme(false);
-
-            // Notify our apprt
+            // Notify our apprt, but don't send a mode 2031 DSR report
+            // because VT sequences were used to change the color.
             try self.rt_app.performAction(
                 .{ .surface = self },
                 .color_change,
@@ -4245,7 +4242,13 @@ fn writeScreenFile(
     const filename = try std.fmt.bufPrint(&filename_buf, "{s}.txt", .{@tagName(loc)});
 
     // Open our scrollback file
-    var file = try tmp_dir.dir.createFile(filename, .{});
+    var file = try tmp_dir.dir.createFile(
+        filename,
+        switch (builtin.os.tag) {
+            .windows => .{},
+            else => .{ .mode = 0o600 },
+        },
+    );
     defer file.close();
 
     // Screen.dumpString writes byte-by-byte, so buffer it
