@@ -8,10 +8,22 @@
 
 %global debug_package %{nil}
 %global project_id          com.mitchellh.ghostty
-%global project_description Ghostty is a terminal emulator that differentiates itself by being fast, \
-feature-rich, and native. While there are many excellent terminal emulators \
-available, they all force you to choose between speed, features, or native UIs. \
+%global project_description %{expand:
+Ghostty is a terminal emulator that differentiates itself by being fast,
+feature-rich, and native. While there are many excellent terminal emulators
+available, they all force you to choose between speed, features, or native UIs.
 Ghostty provides all three.
+}
+
+%global _build_options %{shrink:
+    --summary all \
+    -Doptimize=ReleaseFast \
+    -Dpie=true \
+    -Dgtk-x11=true \
+    -Demit-docs=true \
+    -Dversion-string={{{git_custom_internal_version}}} \
+    %{?with_simdutf:-fsys=simdutf}
+}
 
 Name:           ghostty
 Version:        {{{git_custom_package_version}}}
@@ -167,7 +179,6 @@ Enhances:       %{name} = %{version}-%{release}
 %zig_fetch git+https://github.com/zigimg/zigimg#3a667bdb3d7f0955a5a51c8468eac83210c1439e
 %zig_fetch git+https://github.com/mitchellh/libxev#f6a672a78436d8efee1aa847a43a900ad773618b
 
-%global _build_options --summary all -Doptimize=ReleaseFast -Dpie=true -Dgtk-x11=true -Demit-docs=true -Dversion-string={{{git_custom_internal_version}}} %{?with_simdutf:-fsys=simdutf}
 %zig_build %{_build_options}
 
 %install
