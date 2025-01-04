@@ -19,7 +19,7 @@ function zig_max_version {
     declare major minor patch
     read -r major minor patch <<<"$(zig_min_version | tr '.' ' ')"
 
-    output "${major}.${minor}.$((patch + 10))"
+    output "${major}.$((minor + 1)).${patch}~"
 }
 
 function git_custom_describe {
