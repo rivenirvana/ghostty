@@ -60,14 +60,21 @@ BuildRequires:  pkgconfig(simdutf) >= 4.0.9
 Provides:       bundled(simdutf) = 4.0.9
 %endif
 
-Provides:      bundled(font(CodeNewRoman)), bundled(font(CozetteVector))
-Provides:      bundled(font(Inconsolata)), bundled(font(JuliaMono))
-Provides:      bundled(font(JetBrainsMonoNerdFont)), bundled(font(JetBrainsMonoNoNF))
-Provides:      bundled(font(KawkabMono)), bundled(font(Lilex))
-Provides:      bundled(font(MonaspaceNeon)), bundled(font(NotoColorEmoji))
-Provides:      bundled(font(NotoEmoji))
-Provides:      bundled(glslang) = 14.2.0
-Provides:      bundled(spirv-cross) = 13.1.1
+Provides:       bundled(font(CodeNewRoman)) = 2.000
+Provides:       bundled(font(CozetteVector)) = 1.22.2
+Provides:       bundled(font(GeistMono)) = 1.2.0
+Provides:       bundled(font(Inconsolata)) = 3.001
+Provides:       bundled(font(JetBrainsMonoNerdFont)) = 2.3.0
+Provides:       bundled(font(JetBrainsMonoNoNF)) = 2.3.0
+Provides:       bundled(font(JuliaMono)) = 0.055
+Provides:       bundled(font(KawkabMono)) = 0.501
+Provides:       bundled(font(Lilex)) = 2.200
+Provides:       bundled(font(MonaspaceNeon)) = 1.000
+Provides:       bundled(font(NotoColorEmoji)) = 2.034
+Provides:       bundled(font(NotoEmoji)) = 2.034
+
+Provides:       bundled(glslang) = 14.2.0
+Provides:       bundled(spirv-cross) = 13.1.1
 
 Requires:       %{name}-terminfo = %{version}-%{release}
 Requires:       %{name}-shell-integration = %{version}-%{release}
