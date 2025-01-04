@@ -37,11 +37,18 @@ Source0:        {{{git_repo_archive}}}
 ExclusiveArch:  %{zig_arches}
 ExcludeArch:    i686
 
-BuildRequires:  zig >= {{{zig_min_version}}}, zig < {{{zig_max_version}}}
-BuildRequires:  zig-rpm-macros, git, pandoc, fdupes, desktop-file-utils
-BuildRequires:  pkgconfig(fontconfig), pkgconfig(freetype2), pkgconfig(harfbuzz)
-BuildRequires:  pkgconfig(glib-2.0), pkgconfig(gtk4), pkgconfig(libadwaita-1)
-BuildRequires:  pkgconfig(oniguruma), pkgconfig(libpng), pkgconfig(zlib-ng)
+BuildRequires:  (zig >= {{{zig_min_version}}} with zig < {{{zig_max_version}}})
+BuildRequires:  zig-rpm-macros >= 0.13.0-4
+BuildRequires:  git, pandoc, fdupes, desktop-file-utils
+BuildRequires:  pkgconfig(fontconfig)
+BuildRequires:  pkgconfig(freetype2)
+BuildRequires:  pkgconfig(glib-2.0)
+BuildRequires:  pkgconfig(gtk4)
+BuildRequires:  pkgconfig(harfbuzz)
+BuildRequires:  pkgconfig(libadwaita-1)
+BuildRequires:  pkgconfig(libpng)
+BuildRequires:  pkgconfig(oniguruma)
+BuildRequires:  pkgconfig(zlib-ng)
 
 %if %{with test}
 BuildRequires:  hostname
