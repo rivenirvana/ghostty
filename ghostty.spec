@@ -176,6 +176,7 @@ Enhances:       %{name} = %{version}-%{release}
 
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
+%{buildroot}%{_bindir}/%{name} +version
 
 %if %{with test}
 %zig_test %{_build_options}
