@@ -69,8 +69,8 @@ Provides:      bundled(font(NotoEmoji))
 Provides:      bundled(glslang) = 14.2.0
 Provides:      bundled(spirv-cross) = 13.1.1
 
-Suggests:       %{name}-terminfo = %{version}-%{release}
-Suggests:       %{name}-shell-integration = %{version}-%{release}
+Requires:       %{name}-terminfo = %{version}-%{release}
+Requires:       %{name}-shell-integration = %{version}-%{release}
 Suggests:       %{name}-bash-completion = %{version}-%{release}
 Suggests:       %{name}-fish-completion = %{version}-%{release}
 Suggests:       %{name}-zsh-completion = %{version}-%{release}
