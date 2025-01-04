@@ -146,7 +146,7 @@ image_bg_end: u32 = 0,
 image_text_end: u32 = 0,
 image_virtual: bool = false,
 
-/// Defererred OpenGL operation to update the screen size.
+/// Deferred OpenGL operation to update the screen size.
 const SetScreenSize = struct {
     size: renderer.Size,
 
@@ -764,7 +764,7 @@ pub fn updateFrame(
 
         // We used to share terminal state, but we've since learned through
         // analysis that it is faster to copy the terminal state than to
-        // hold the lock wile rebuilding GPU cells.
+        // hold the lock while rebuilding GPU cells.
         var screen_copy = try state.terminal.screen.clone(
             self.alloc,
             .{ .viewport = .{} },
