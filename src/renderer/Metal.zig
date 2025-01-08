@@ -209,20 +209,31 @@ pub const GPUState = struct {
     }
 
     fn chooseDevice() error{NoMetalDevice}!objc.Object {
-        const devices = objc.Object.fromId(mtl.MTLCopyAllDevices());
-        defer devices.release();
         var chosen_device: ?objc.Object = null;
-        var iter = devices.iterate();
-        while (iter.next()) |device| {
-            // We want a GPU that’s connected to a display.
-            if (device.getProperty(bool, "isHeadless")) continue;
-            chosen_device = device;
-            // If the user has an eGPU plugged in, they probably want
-            // to use it. Otherwise, integrated GPUs are better for
-            // battery life and thermals.
-            if (device.getProperty(bool, "isRemovable") or
-                device.getProperty(bool, "isLowPower")) break;
+
+        switch (comptime builtin.os.tag) {
+            .macos => {
+                const devices = objc.Object.fromId(mtl.MTLCopyAllDevices());
+                defer devices.release();
+
+                var iter = devices.iterate();
+                while (iter.next()) |device| {
+                    // We want a GPU that’s connected to a display.
+                    if (device.getProperty(bool, "isHeadless")) continue;
+                    chosen_device = device;
+                    // If the user has an eGPU plugged in, they probably want
+                    // to use it. Otherwise, integrated GPUs are better for
+                    // battery life and thermals.
+                    if (device.getProperty(bool, "isRemovable") or
+                        device.getProperty(bool, "isLowPower")) break;
+                }
+            },
+            .ios => {
+                chosen_device = objc.Object.fromId(mtl.MTLCreateSystemDefaultDevice());
+            },
+            else => @compileError("unsupported target for Metal"),
         }
+
         const device = chosen_device orelse return error.NoMetalDevice;
         return device.retain();
     }
@@ -360,6 +371,7 @@ pub const DerivedConfig = struct {
     arena: ArenaAllocator,
 
     font_thicken: bool,
+    font_thicken_strength: u8,
     font_features: std.ArrayListUnmanaged([:0]const u8),
     font_styles: font.CodepointResolver.StyleStatus,
     cursor_color: ?terminal.color.RGB,
@@ -410,6 +422,7 @@ pub const DerivedConfig = struct {
         return .{
             .background_opacity = @max(0, @min(1, config.@"background-opacity")),
             .font_thicken = config.@"font-thicken",
+            .font_thicken_strength = config.@"font-thicken-strength",
             .font_features = font_features.list,
             .font_styles = font_styles,
 
@@ -2837,6 +2850,7 @@ fn addGlyph(
         .{
             .grid_metrics = self.grid_metrics,
             .thicken = self.config.font_thicken,
+            .thicken_strength = self.config.font_thicken_strength,
         },
     );
 
