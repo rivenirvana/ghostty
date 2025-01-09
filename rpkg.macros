@@ -10,7 +10,7 @@ function cached {
 function zig_min_version {
     cached zig_min_version && return
 
-    output "$(grep -oP 'const required_zig = "\K[^"]+' build.zig)"
+    output "$(grep -oP 'buildpkg\.requireZig\("\K[^"]+' build.zig)"
 }
 
 function zig_max_version {
