@@ -323,7 +323,7 @@ BuildArch:      noarch
 
 %{summary}.
 
-%description    nautilus
+%package        nautilus
 Summary:        %{name} extension for Nautilus
 BuildArch:      noarch
 Supplements:    (%{name} = %{version}-%{release} and nautilus)
