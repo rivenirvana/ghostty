@@ -323,6 +323,16 @@ BuildArch:      noarch
 
 %{summary}.
 
+%description    nautilus
+Summary:        %{name} extension for Nautilus
+BuildArch:      noarch
+Supplements:    (%{name} = %{version}-%{release} and nautilus)
+
+%description    nautilus
+%{project_description}
+
+%{summary}.
+
 %package        nvim-plugin
 Summary:        Neovim plugin for %{name}
 BuildArch:      noarch
@@ -486,6 +496,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 %{_datadir}/%{name}/shell-integration/fish/vendor_conf.d/%{name}-shell-integration.fish
 %{_datadir}/%{name}/shell-integration/zsh/.zshenv
 %{_datadir}/%{name}/shell-integration/zsh/%{name}-integration
+
+%files nautilus
+%{_datadir}/nautilus-python/extensions/%{project_id}.py
 
 %files nvim-plugin
 %{_datadir}/nvim/site/{compiler,ftdetect,ftplugin,syntax}/%{name}.vim
