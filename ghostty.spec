@@ -250,7 +250,7 @@ Requires:       %{name}-themes = %{version}-%{release}
 %if %{with lib}
 
 %package -n %{library}
-Summary:        %{name} terminal library
+Summary:        Terminal library for %{name}
 
 %description -n %{library}
 %{project_description}
@@ -258,7 +258,7 @@ Summary:        %{name} terminal library
 %{summary}.
 
 %package -n %{library}-static
-Summary:        Static %{name} terminal libary
+Summary:        Static terminal libary for %{name}
 
 %description -n %{library}-static
 %{project_description}
@@ -323,7 +323,7 @@ BuildArch:      noarch
 %{summary}.
 
 %package        nautilus
-Summary:        %{name} extension for Nautilus
+Summary:        Nautilus extension for %{name}
 BuildArch:      noarch
 Supplements:    (%{name} = %{version}-%{release} and nautilus)
 
