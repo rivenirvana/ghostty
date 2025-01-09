@@ -118,7 +118,7 @@ Summary:        Fast, native, feature-rich terminal emulator pushing modern feat
 # pkg/wuffs:                Apache-2.0 AND MIT
 # pkg/wuffs/pixels:         CC0-1.0
 # vendor/glad               (WTFPL OR CC0-1.0) AND Apache-2.0
-License:        MIT AND MIT-Modern-Variant AND Zlib AND curl AND MPL-2.0 AND HPND AND LicenseRef-Fedora-Public-Domain AND Unicode-DFS-2016 AND Unicode-3.0 AND BSL-1.0 AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND BSD-4-Clause AND (FTL OR GPL-2.0-or-later) AND APSL-2.0 AND ClArtistic AND GPL-3.0-or-later AND (GPL-2.0-or-later WITH Autoconf-exception-generic) AND OFL-1.1 AND (WTFPL OR CC0-1.0)
+License:        MIT AND MIT-Modern-Variant AND Zlib AND curl AND MPL-2.0 AND HPND AND LicenseRef-Fedora-Public-Domain AND Unicode-DFS-2016 AND Unicode-3.0 AND BSL-1.0 AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND BSD-4-Clause AND (FTL OR GPL-2.0-or-later) AND APSL-2.0 AND ClArtistic AND GPL-3.0-or-later AND (GPL-2.0-or-later WITH Autoconf-exception-generic) AND OFL-1.1 AND (WTFPL OR CC0-1.0) AND LGPL-2.1-only AND CC0-1.0
 
 URL:            https://ghostty.org/
 Source0:        {{{git_repo_archive}}}
