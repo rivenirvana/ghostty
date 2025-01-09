@@ -53,7 +53,6 @@ speed, features, or native UIs. Ghostty provides all three.
 }
 
 %global build_options %{shrink: \
-    --summary all \
     -Doptimize=ReleaseFast \
     -fno-sys=glslang \
     -fsys=simdutf \
