@@ -408,8 +408,8 @@ Enhances:       %{name} = %{version}-%{release}
 %zig_fetch zigimg-%{zigimg_commit}
 %zig_fetch zg
 %zig_fetch zig-wayland
-%zig_fetch wayland
-%zig_fetch wayland-protocols
+%zig_fetch wayland-main
+%zig_fetch wayland-protocols-main
 %zig_fetch plasma-wayland-protocols-%{plasma_wayland_protocols_commit}
 %zig_fetch zig-objc-%{zig_objc_commit}
 %zig_fetch zig-js-%{zig_js_commit}
