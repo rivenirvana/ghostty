@@ -56,6 +56,7 @@ speed, features, or native UIs. Ghostty provides all three.
     --summary all \
     -Doptimize=ReleaseFast \
     -fno-sys=glslang \
+    -fno-sys=wayland-protocols \
     -fsys=simdutf \
     -Dflatpak=false \
     -Dfont-backend=fontconfig_freetype \
