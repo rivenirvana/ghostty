@@ -56,7 +56,6 @@ speed, features, or native UIs. Ghostty provides all three.
     --summary all \
     -Doptimize=ReleaseFast \
     -fno-sys=glslang \
-    -fno-sys=wayland-protocols \
     -fsys=simdutf \
     -Dflatpak=false \
     -Dfont-backend=fontconfig_freetype \
@@ -185,8 +184,8 @@ Provides:       bundled(zf) = %{zf_commit}
 Provides:       bundled(zigimg) = %{zigimg_commit}
 Provides:       bundled(zg) = %{zg_version}
 Provides:       bundled(zig-wayland) = %{zig_wayland_commit}
-Provides:       bundled(wayland) = %{wayland_commit}
-Provides:       bundled(wayland-protocols) = %{wayland_protocols_commit}
+Provides:       bundled(wayland-devel) = %{wayland_commit}
+Provides:       bundled(wayland-protocols-devel) = %{wayland_protocols_commit}
 Provides:       bundled(plasma-wayland-protocols) = %{plasma_wayland_protocols_commit}
 Provides:       bundled(zig-objc) = %{zig_objc_commit}
 Provides:       bundled(zig-js) = %{zig_js_commit}
@@ -239,6 +238,8 @@ BuildRequires:  pkgconfig(simdutf) >= 5.2.8
 BuildRequires:  pkgconfig(gtk4)
 BuildRequires:  pkgconfig(libadwaita-1)
 BuildRequires:  libX11-devel
+BuildRequires:  wayland-devel
+BuildRequires:  wayland-protocols-devel
 
 Requires:       %{name}-terminfo = %{version}-%{release}
 Requires:       %{name}-shell-integration = %{version}-%{release}
