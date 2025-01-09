@@ -333,12 +333,12 @@ Supplements:    (%{name} = %{version}-%{release} and nautilus)
 
 %{summary}.
 
-%package        nvim-plugin
+%package        neovim-plugin
 Summary:        Neovim plugin for %{name}
 BuildArch:      noarch
-Supplements:    (%{name} = %{version}-%{release} and nvim)
+Supplements:    (%{name} = %{version}-%{release} and neovim)
 
-%description    nvim-plugin
+%description    neovim-plugin
 %{project_description}
 
 %{summary}.
@@ -500,7 +500,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 %files nautilus
 %{_datadir}/nautilus-python/extensions/%{project_id}.py
 
-%files nvim-plugin
+%files neovim-plugin
 %{_datadir}/nvim/site/{compiler,ftdetect,ftplugin,syntax}/%{name}.vim
 
 %files vim-plugin
