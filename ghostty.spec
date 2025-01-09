@@ -32,7 +32,7 @@
 %global zf_commit ed99ca18b02dda052e20ba467e90b623c04690dd
 %global zigimg_commit 3a667bdb3d7f0955a5a51c8468eac83210c1439e
 %global zg_version 0.13.2
-%global zig_wayland_commit a5e2e9b6a6d7fba638ace4d4b24a3b576a02685b
+%global zig_wayland_commit 0823d9116b80d65ecfad48a2efbca166c7b03497
 %global plasma_wayland_protocols_commit db525e8f9da548cffa2ac77618dd0fbe7f511b86
 # These aren't needed for compiling on linux however these are not marked as lazy
 # thus required to be valid zig packages
