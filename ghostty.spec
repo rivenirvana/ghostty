@@ -33,6 +33,8 @@
 %global zigimg_commit 3a667bdb3d7f0955a5a51c8468eac83210c1439e
 %global zg_version 0.13.2
 %global zig_wayland_commit 0823d9116b80d65ecfad48a2efbca166c7b03497
+%global wayland_commit 9cb3d7aa9dc995ffafdbdef7ab86a949d0fb0e7d
+%global wayland_protocols_commit 258d8f88f2c8c25a830c6316f87d23ce1a0f12d9
 %global plasma_wayland_protocols_commit db525e8f9da548cffa2ac77618dd0fbe7f511b86
 # These aren't needed for compiling on linux however these are not marked as lazy
 # thus required to be valid zig packages
@@ -98,6 +100,8 @@ Summary:        Fast, native, feature-rich terminal emulator pushing modern feat
 # ziglyph:                  MIT
 # zg:                       MIT
 # zig-wayland               MIT
+# wayland                   MIT
+# wayland-protocols         MIT
 # plasma-wayland-protocols  LGPL-2.1-only
 # iTerm2-Color-Schemes:     MIT
 # pkg/fontconfig:           HPND AND LicenseRef-Fedora-Public-Domain AND Unicode-DFS-2016
@@ -146,12 +150,14 @@ Source29:       https://github.com/natecraddock/zf/archive/%{zf_commit}/zf-%{zf_
 Source30:       https://github.com/zigimg/zigimg/archive/%{zigimg_commit}/zigimg-%{zigimg_commit}.tar.gz
 Source31:       https://codeberg.org/atman/zg/archive/v%{zg_version}.tar.gz#/zg-v%{zg_version}.tar.gz
 Source32:       https://codeberg.org/ifreund/zig-wayland/archive/%{zig_wayland_commit}.tar.gz#/zig-wayland-%{zig_wayland_commit}.tar.gz
-Source33:       https://invent.kde.org/libraries/plasma-wayland-protocols/-/archive/%{plasma_wayland_protocols_commit}/plasma-wayland-protocols-%{plasma_wayland_protocols_commit}.tar.gz
-Source34:       https://github.com/mitchellh/zig-objc/archive/%{zig_objc_commit}/zig-objc-%{zig_objc_commit}.tar.gz
-Source35:       https://github.com/mitchellh/zig-js/archive/%{zig_js_commit}/zig-js-%{zig_js_commit}.tar.gz
+Source33:       https://deps.files.ghostty.org/wayland-%{wayland_commit}.tar.gz
+Source34:       https://deps.files.ghostty.org/wayland-protocols-%{wayland_protocols_commit}.tar.gz
+Source35:       https://invent.kde.org/libraries/plasma-wayland-protocols/-/archive/%{plasma_wayland_protocols_commit}/plasma-wayland-protocols-%{plasma_wayland_protocols_commit}.tar.gz
+Source36:       https://github.com/mitchellh/zig-objc/archive/%{zig_objc_commit}/zig-objc-%{zig_objc_commit}.tar.gz
+Source37:       https://github.com/mitchellh/zig-js/archive/%{zig_js_commit}/zig-js-%{zig_js_commit}.tar.gz
 
 %global source_setup %{lua: \
-    for i = 10, 35 do \
+    for i = 10, 37 do \
         print(" -a " .. i) \
     end \
 }
@@ -178,6 +184,8 @@ Provides:       bundled(zf) = %{zf_commit}
 Provides:       bundled(zigimg) = %{zigimg_commit}
 Provides:       bundled(zg) = %{zg_version}
 Provides:       bundled(zig-wayland) = %{zig_wayland_commit}
+Provides:       bundled(wayland) = %{wayland_commit}
+Provides:       bundled(wayland-protocols) = %{wayland_protocols_commit}
 Provides:       bundled(plasma-wayland-protocols) = %{plasma_wayland_protocols_commit}
 Provides:       bundled(zig-objc) = %{zig_objc_commit}
 Provides:       bundled(zig-js) = %{zig_js_commit}
@@ -226,12 +234,10 @@ BuildRequires:  pkgconfig(zlib-ng)
 BuildRequires:  pkgconfig(oniguruma)
 BuildRequires:  pkgconfig(libxml-2.0)
 BuildRequires:  pkgconfig(simdutf) >= 5.2.8
-BuildRequires:  pkgconfig(wayland-protocols)
 # app runtime
 BuildRequires:  pkgconfig(gtk4)
 BuildRequires:  pkgconfig(libadwaita-1)
 BuildRequires:  libX11-devel
-BuildRequires:  wayland-devel
 
 Requires:       %{name}-terminfo = %{version}-%{release}
 Requires:       %{name}-shell-integration = %{version}-%{release}
@@ -402,6 +408,8 @@ Enhances:       %{name} = %{version}-%{release}
 %zig_fetch zigimg-%{zigimg_commit}
 %zig_fetch zg
 %zig_fetch zig-wayland
+%zig_fetch wayland
+%zig_fetch wayland-protocols
 %zig_fetch plasma-wayland-protocols-%{plasma_wayland_protocols_commit}
 %zig_fetch zig-objc-%{zig_objc_commit}
 %zig_fetch zig-js-%{zig_js_commit}
