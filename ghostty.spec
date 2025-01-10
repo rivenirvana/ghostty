@@ -45,12 +45,7 @@
 %global _zig_release_mode fast
 %global library             libghostty
 %global project_id          com.mitchellh.ghostty
-%global project_description %{expand:
-Ghostty is a terminal emulator that differentiates itself by being
-fast, feature-rich, and native. While there are many excellent
-terminal emulators available, they all force you to choose between
-speed, features, or native UIs. Ghostty provides all three.
-}
+%global project_summary     Fast, native, feature-rich terminal emulator pushing modern features
 
 %global build_options %{shrink: \
     -Doptimize=ReleaseFast \
@@ -86,7 +81,7 @@ speed, features, or native UIs. Ghostty provides all three.
 Name:           ghostty
 Version:        {{{git_custom_package_version}}}
 Release:        {{{git_custom_release}}}%{?dist}
-Summary:        Fast, native, feature-rich terminal emulator pushing modern features
+Summary:        %{project_summary}
 
 # ghostty:                  MIT
 # libvaxis:                 MIT
@@ -245,7 +240,10 @@ Requires:       %{name}-shell-integration = %{version}-%{release}
 Requires:       %{name}-themes = %{version}-%{release}
 
 %description
-%{project_description}
+Ghostty is a terminal emulator that differentiates itself by being
+fast, feature-rich, and native. While there are many excellent
+terminal emulators available, they all force you to choose between
+speed, features, or native UIs. Ghostty provides all three.
 
 %if %{with lib}
 
@@ -253,7 +251,7 @@ Requires:       %{name}-themes = %{version}-%{release}
 Summary:        Terminal library for %{name}
 
 %description -n %{library}
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -261,7 +259,7 @@ Summary:        Terminal library for %{name}
 Summary:        Static terminal libary for %{name}
 
 %description -n %{library}-static
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -271,7 +269,7 @@ BuildArch:      noarch
 Requires:       %{library}
 
 %description -n %{library}-devel
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -285,7 +283,7 @@ Requires:       bash-completion
 Supplements:    (%{name} = %{version}-%{release} and bash-completion)
 
 %description    bash-completion
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -297,7 +295,7 @@ Requires:       zsh
 Supplements:    (%{name} = %{version}-%{release} and zsh)
 
 %description    zsh-completion
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -309,7 +307,7 @@ Requires:       fish
 Supplements:    (%{name} = %{version}-%{release} and fish)
 
 %description    fish-completion
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -318,7 +316,7 @@ Summary:        Shell integration scripts for %{name}
 BuildArch:      noarch
 
 %description    shell-integration
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -328,7 +326,7 @@ BuildArch:      noarch
 Supplements:    (%{name} = %{version}-%{release} and nautilus)
 
 %description    nautilus
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -338,7 +336,7 @@ BuildArch:      noarch
 Supplements:    (%{name} = %{version}-%{release} and neovim)
 
 %description    neovim-plugin
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -348,7 +346,7 @@ BuildArch:      noarch
 Supplements:    (%{name} = %{version}-%{release} and vim)
 
 %description    vim-plugin
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -358,7 +356,7 @@ BuildArch:      noarch
 Supplements:    (%{name} = %{version}-%{release} and bat)
 
 %description    bat-syntax
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -369,7 +367,7 @@ Requires:       %{name} = %{version}-%{release}
 Requires:       ncurses-base
 
 %description    terminfo
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -378,7 +376,7 @@ Summary:        Themes for %{name}
 BuildArch:      noarch
 
 %description    themes
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
@@ -388,7 +386,7 @@ BuildArch:      noarch
 Enhances:       %{name} = %{version}-%{release}
 
 %description    docs
-%{project_description}
+%{project_summary}.
 
 %{summary}.
 
