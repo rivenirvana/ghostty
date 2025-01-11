@@ -32,7 +32,7 @@
 %global zf_commit ed99ca18b02dda052e20ba467e90b623c04690dd
 %global zigimg_commit 3a667bdb3d7f0955a5a51c8468eac83210c1439e
 %global zg_version 0.13.2
-%global zig_wayland_commit 0823d9116b80d65ecfad48a2efbca166c7b03497
+%global zig_wayland_commit fbfe3b4ac0b472a27b1f1a67405436c58cbee12d
 %global wayland_commit 9cb3d7aa9dc995ffafdbdef7ab86a949d0fb0e7d
 %global wayland_protocols_commit 258d8f88f2c8c25a830c6316f87d23ce1a0f12d9
 %global plasma_wayland_protocols_commit db525e8f9da548cffa2ac77618dd0fbe7f511b86
