@@ -10,7 +10,7 @@
 # unbundled https://github.com/ghostty-org/ghostty/pull/4205
 %global harfbuzz_version 8.4.0
 %global utfcpp_version 4.0.5
-%global iterm2_color_commit 4762ad5bd6d3906e28babdc2bda8a967d63a63be
+%global iterm2_color_commit 25cb3c3f52c7011cd8a599f8d144fc63f4409eb6
 %global z2d_commit 4638bb02a9dc41cc2fb811f092811f6a951c752a
 %global spirv_cross_commit 476f384eb7d9e48613c45179e502a15ab95b6b49
 %global libvaxis_commit1 6d729a2dc3b934818dffe06d2ba3ce02841ed74b
