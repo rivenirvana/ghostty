@@ -248,6 +248,32 @@ const c = @cImport({
 /// This is currently only supported on macOS.
 @"font-thicken-strength": u8 = 255,
 
+/// What color space to use when performing alpha blending.
+///
+/// This affects how text looks for different background/foreground color pairs.
+///
+/// Valid values:
+///
+/// * `native` - Perform alpha blending in the native color space for the OS.
+///   On macOS this corresponds to Display P3, and on Linux it's sRGB.
+///
+/// * `linear` - Perform alpha blending in linear space. This will eliminate
+///   the darkening artifacts around the edges of text that are very visible
+///   when certain color combinations are used (e.g. red / green), but makes
+///   dark text look much thinner than normal and light text much thicker.
+///   This is also sometimes known as "gamma correction".
+///   (Currently only supported on macOS. Has no effect on Linux.)
+///
+/// * `linear-corrected` - Corrects the thinning/thickening effect of linear
+///   by applying a correction curve to the text alpha depending on its
+///   brightness. This compensates for the thinning and makes the weight of
+///   most text appear very similar to when it's blended non-linearly.
+///
+/// Note: This setting affects more than just text, images will also be blended
+/// in the selected color space, and custom shaders will receive colors in that
+/// color space as well.
+@"text-blending": TextBlending = .native,
+
 /// All of the configurations behavior adjust various metrics determined by the
 /// font. The values can be integers (1, -1, etc.) or a percentage (20%, -15%,
 /// etc.). In each case, the values represent the amount to change the original
@@ -763,6 +789,11 @@ link: RepeatableLink = .{},
 /// The URL matcher is always lowest priority of any configured links (see
 /// `link`). If you want to customize URL matching, use `link` and disable this.
 @"link-url": bool = true,
+
+/// Whether to start the window in a maximized state. This setting applies
+/// to new windows and does not apply to tabs, splits, etc. However, this setting
+/// will apply to all new windows, not just the first one.
+maximize: bool = false,
 
 /// Start new windows in fullscreen. This setting applies to new windows and
 /// does not apply to tabs, splits, etc. However, this setting will apply to all
@@ -2026,6 +2057,10 @@ keybind: Keybinds = .{},
 /// `toggle_tab_overview` action in a keybind if your window doesn't have a
 /// title bar, or you can switch tabs with keybinds.
 @"gtk-tabs-location": GtkTabsLocation = .top,
+
+/// If this is `true`, the titlebar will be hidden when the window is maximized,
+/// and shown when the titlebar is unmaximized. GTK only.
+@"gtk-titlebar-hide-when-maximized": bool = false,
 
 /// Determines the appearance of the top and bottom bars when using the
 /// Adwaita tab bar. This requires `gtk-adwaita` to be enabled (it is
@@ -5742,6 +5777,20 @@ pub const QuickTerminalSpaceBehavior = enum {
 pub const GraphemeWidthMethod = enum {
     legacy,
     unicode,
+};
+
+/// See text-blending
+pub const TextBlending = enum {
+    native,
+    linear,
+    @"linear-corrected",
+
+    pub fn isLinear(self: TextBlending) bool {
+        return switch (self) {
+            .native => false,
+            .linear, .@"linear-corrected" => true,
+        };
+    }
 };
 
 /// See freetype-load-flag
