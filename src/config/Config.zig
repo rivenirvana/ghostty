@@ -42,6 +42,15 @@ const c = @cImport({
     @cInclude("unistd.h");
 });
 
+/// Renamed fields, used by cli.parse
+pub const renamed = std.StaticStringMap([]const u8).initComptime(&.{
+    // Ghostty 1.1 introduced background-blur support for Linux which
+    // doesn't support a specific radius value. The renaming is to let
+    // one field be used for both platforms (macOS retained the ability
+    // to set a radius).
+    .{ "background-blur-radius", "background-blur" },
+});
+
 /// The font families to use.
 ///
 /// You can generate the list of valid values using the CLI:
@@ -649,7 +658,7 @@ palette: Palette = .{},
 /// need to set environment-specific settings and/or install third-party plugins
 /// in order to support background blur, as there isn't a unified interface for
 /// doing so.
-@"background-blur-radius": BackgroundBlur = .false,
+@"background-blur": BackgroundBlur = .false,
 
 /// The opacity level (opposite of transparency) of an unfocused split.
 /// Unfocused splits by default are slightly faded out to make it easier to see
@@ -1762,6 +1771,31 @@ keybind: Keybinds = .{},
 /// open terminals.
 @"custom-shader-animation": CustomShaderAnimation = .true,
 
+/// Control the in-app notifications that Ghostty shows.
+///
+/// On Linux (GTK) with Adwaita, in-app notifications show up as toasts. Toasts
+/// appear overlaid on top of the terminal window. They are used to show
+/// information that is not critical but may be important.
+///
+/// Possible notifications are:
+///
+///   - `clipboard-copy` (default: true) - Show a notification when text is copied
+///     to the clipboard.
+///
+/// To specify a notification to enable, specify the name of the notification.
+/// To specify a notification to disable, prefix the name with `no-`. For
+/// example, to disable `clipboard-copy`, set this configuration to
+/// `no-clipboard-copy`. To enable it, set this configuration to `clipboard-copy`.
+///
+/// Multiple notifications can be enabled or disabled by separating them
+/// with a comma.
+///
+/// A value of "false" will disable all notifications. A value of "true" will
+/// enable all notifications.
+///
+/// This configuration only applies to GTK with Adwaita enabled.
+@"app-notifications": AppNotifications = .{},
+
 /// If anything other than false, fullscreen mode on macOS will not use the
 /// native fullscreen, but make the window fullscreen without animations and
 /// using a new space. It's faster than the native fullscreen mode since it
@@ -1816,9 +1850,12 @@ keybind: Keybinds = .{},
 /// The "hidden" style hides the titlebar. Unlike `window-decoration = false`,
 /// however, it does not remove the frame from the window or cause it to have
 /// squared corners. Changing to or from this option at run-time may affect
-/// existing windows in buggy ways. The top titlebar area of the window will
-/// continue to drag the window around and you will not be able to use
-/// the mouse for terminal events in this space.
+/// existing windows in buggy ways.
+///
+/// When "hidden", the top titlebar area can no longer be used for dragging
+/// the window. To drag the window, you can use option+click on the resizable
+/// areas of the frame to drag the window. This is a standard macOS behavior
+/// and not something Ghostty enables.
 ///
 /// The default value is "transparent". This is an opinionated choice
 /// but its one I think is the most aesthetically pleasing and works in
@@ -2108,29 +2145,6 @@ keybind: Keybinds = .{},
 ///
 /// Changing this value at runtime will only affect new windows.
 @"adw-toolbar-style": AdwToolbarStyle = .raised,
-
-/// Control the toasts that Ghostty shows. Toasts are small notifications
-/// that appear overlaid on top of the terminal window. They are used to
-/// show information that is not critical but may be important.
-///
-/// Possible toasts are:
-///
-///   - `clipboard-copy` (default: true) - Show a toast when text is copied
-///     to the clipboard.
-///
-/// To specify a toast to enable, specify the name of the toast. To specify
-/// a toast to disable, prefix the name with `no-`. For example, to disable
-/// the clipboard-copy toast, set this configuration to `no-clipboard-copy`.
-/// To enable the clipboard-copy toast, set this configuration to
-/// `clipboard-copy`.
-///
-/// Multiple toasts can be enabled or disabled by separating them with a comma.
-///
-/// A value of "false" will disable all toasts. A value of "true" will
-/// enable all toasts.
-///
-/// This configuration only applies to GTK with Adwaita enabled.
-@"adw-toast": AdwToast = .{},
 
 /// If `true` (default), then the Ghostty GTK tabs will be "wide." Wide tabs
 /// are the new typical Gnome style where tabs fill their available space.
@@ -5733,8 +5747,8 @@ pub const AdwToolbarStyle = enum {
     @"raised-border",
 };
 
-/// See adw-toast
-pub const AdwToast = packed struct {
+/// See app-notifications
+pub const AppNotifications = packed struct {
     @"clipboard-copy": bool = true,
 };
 
@@ -5851,7 +5865,7 @@ pub const AutoUpdate = enum {
     download,
 };
 
-/// See background-blur-radius
+/// See background-blur
 pub const BackgroundBlur = union(enum) {
     false,
     true,

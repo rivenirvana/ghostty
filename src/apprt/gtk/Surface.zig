@@ -559,7 +559,7 @@ pub fn init(self: *Surface, app: *App, opts: Options) !void {
         .font_size = font_size,
         .init_config = init_config,
         .size = .{ .width = 800, .height = 600 },
-        .cursor_pos = .{ .x = 0, .y = 0 },
+        .cursor_pos = .{ .x = -1, .y = -1 },
         .im_context = im_context,
         .cgroup_path = cgroup_path,
     };
@@ -632,9 +632,6 @@ fn realize(self: *Surface) !void {
     if (self.font_size) |size| {
         try self.core_surface.setFontSize(size);
     }
-
-    // Set the initial color scheme
-    try self.core_surface.colorSchemeCallback(self.app.getColorScheme());
 
     // Note we're realized
     self.realized = true;
@@ -1136,7 +1133,7 @@ pub fn setClipboardString(
         c.gdk_clipboard_set_text(clipboard, val.ptr);
         // We only toast if we are copying to the standard clipboard.
         if (clipboard_type == .standard and
-            self.app.config.@"adw-toast".@"clipboard-copy")
+            self.app.config.@"app-notifications".@"clipboard-copy")
         {
             if (self.container.window()) |window|
                 window.sendToast("Copied to clipboard");
@@ -1960,6 +1957,12 @@ fn gtkInputCommit(
 
     // Committing ends composing state
     self.im_composing = false;
+
+    // End our preedit state. Well-behaved input methods do this for us
+    // by triggering a preedit-end event but some do not (ibus 1.5.29).
+    self.core_surface.preeditCallback(null) catch |err| {
+        log.err("error in preedit callback err={}", .{err});
+    };
 
     // Send the text to the core surface, associated with no key (an
     // invalid key, which should produce no PTY encoding).
