@@ -58,6 +58,8 @@
     -Dgtk-x11=true \
     -Dgtk-wayland=true \
     -Dpie=true \
+    -Demit-terminfo \
+    -Demit-termcap \
     -Demit-docs=true \
     -Dversion-string={{{git_custom_internal_version}}} \
     -Dstrip=false \
