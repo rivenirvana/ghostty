@@ -4,30 +4,17 @@
 #
 # Zig only dependencies are vendored all other dependencies will be resolved from the system
 # in future releases.
-
-# unbundled https://github.com/ghostty-org/ghostty/pull/4520
-%global fontconfig_version 2.14.2
-# unbundled https://github.com/ghostty-org/ghostty/pull/4205
-%global harfbuzz_version 8.4.0
 %global utfcpp_version 4.0.5
 %global iterm2_color_commit 0e23daf59234fc892cba949562d7bf69204594bb
 %global z2d_commit 4638bb02a9dc41cc2fb811f092811f6a951c752a
 %global spirv_cross_commit 476f384eb7d9e48613c45179e502a15ab95b6b49
 %global libvaxis_commit1 6d729a2dc3b934818dffe06d2ba3ce02841ed74b
 %global libvaxis_commit2 dc0a228a5544988d4a920cfb40be9cd28db41423
-%global sentry_version 0.7.8
 %global glslang_version 14.2.0
-# unbundled https://github.com/ghostty-org/ghostty/pull/4543
-%global freetype_version 2.13.2
-%global freetype_dash_version %{lua x = string.gsub(macros['freetype_version'], "%.", "-"); print(x)}
-# unbundled https://github.com/ghostty-org/ghostty/pull/4534
-%global oniguruma_version 6.9.9
 %global highway_version 1.1.0
 %global libxev_commit 31eed4e337fed7b0149319e5cdbb62b848c24fbd
 %global imgui_commit e391fe2e66eb1c96b1624ae8444dc64c23146ef4
-%global breakpad_commit b99f444ba5f6b98cac261cbb391d8766b34a5918
 %global wuffs_version 0.4.0-alpha.9
-%global pixels_commit d843c2714d32e15b48b8d7eeb480295af537f877
 %global ziglyph_commit b89d43d1e3fb01b6074bc1f7fc980324b04d26a5
 %global zf_commit ed99ca18b02dda052e20ba467e90b623c04690dd
 %global zigimg_commit 3a667bdb3d7f0955a5a51c8468eac83210c1439e
@@ -35,7 +22,7 @@
 %global zig_wayland_commit fbfe3b4ac0b472a27b1f1a67405436c58cbee12d
 %global wayland_commit 9cb3d7aa9dc995ffafdbdef7ab86a949d0fb0e7d
 %global wayland_protocols_commit 258d8f88f2c8c25a830c6316f87d23ce1a0f12d9
-%global plasma_wayland_protocols_commit db525e8f9da548cffa2ac77618dd0fbe7f511b86
+%global plasma_protocols_commit db525e8f9da548cffa2ac77618dd0fbe7f511b86
 # These aren't needed for compiling on linux however these are not marked as lazy
 # thus required to be valid zig packages
 %global zig_objc_commit 9b8ba849b0f58fe207ecd6ab7c147af55b17556e
@@ -58,11 +45,12 @@
     -Dgtk-x11=true \
     -Dgtk-wayland=true \
     -Dpie=true \
-    -Demit-terminfo \
-    -Demit-termcap \
     -Demit-docs=true \
     -Dversion-string={{{git_custom_internal_version}}} \
     -Dstrip=false \
+    -Dsentry=false \
+    -Demit-terminfo=false \
+    -Demit-termcap=false \
 }
 
 %global gtk_options %{shrink: \
@@ -95,96 +83,72 @@ Summary:        %{project_summary}
 # zigimg:                   MIT
 # ziglyph:                  MIT
 # zg:                       MIT
-# zig-wayland               MIT
-# wayland                   MIT
-# wayland-protocols         MIT
+# zig-wayland:              MIT
+# wayland:                  MIT
+# wayland-protocols:        MIT
 # plasma-wayland-protocols  LGPL-2.1-only
 # iTerm2-Color-Schemes:     MIT
-# pkg/fontconfig:           HPND AND LicenseRef-Fedora-Public-Domain AND Unicode-DFS-2016
-# pkg/harfbuzz:             MIT-Modern-Variant
 # pkg/utfcpp:               BSL-1.0
 # pkg/spirv-cross:          Apache-2.0
-# pkg/sentry:               MIT
 # pkg/glslang:              BSD-2-Clause AND BSD-3-Clause AND GPL-3.0-or-later AND Apache-2.0
-# pkg/freetype:             (FTL OR GPL-2.0-or-later) AND BSD-3-Clause AND MIT AND MIT-Modern-Variant AND LicenseRef-Fedora-Public-Domain AND Zlib)
-# pkg/oniguruma:            BSD-2-Clause
 # pkg/highway:              Apache-2.0
 # pkg/cimgui:               MIT
-# pkg/breakpad:             MIT AND BSD-2-Clause AND BSD-3-Clause AND BSD-4-Clause AND Apache-2.0 AND MIT AND curl AND APSL-2.0 AND ClArtistic AND Unicode-3.0 AND LicenseRef-Fedora-Public-Domain AND (GPL-2.0-or-later WITH Autoconf-exception-generic)
 # pkg/wuffs:                Apache-2.0 AND MIT
-# pkg/wuffs/pixels:         CC0-1.0
 # vendor/glad               (WTFPL OR CC0-1.0) AND Apache-2.0
-License:        MIT AND MIT-Modern-Variant AND Zlib AND curl AND MPL-2.0 AND HPND AND LicenseRef-Fedora-Public-Domain AND Unicode-DFS-2016 AND Unicode-3.0 AND BSL-1.0 AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND BSD-4-Clause AND (FTL OR GPL-2.0-or-later) AND APSL-2.0 AND ClArtistic AND GPL-3.0-or-later AND (GPL-2.0-or-later WITH Autoconf-exception-generic) AND OFL-1.1 AND (WTFPL OR CC0-1.0) AND LGPL-2.1-only AND CC0-1.0
+License:        MIT AND MPL-2.0 AND LGPL-2.1-only AND BSL-1.0 AND Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND GPL-3.0-or-later AND Apache-2.0 AND (WTFPL OR CC0-1.0)
 
 URL:            https://ghostty.org/
 Source0:        {{{git_repo_pack}}}
 
-Source10:       https://deps.files.ghostty.org/fontconfig-%{fontconfig_version}.tar.gz
-# unbundling in process https://github.com/ghostty-org/ghostty/pull/4205
-Source11:       https://github.com/harfbuzz/harfbuzz/archive/refs/tags/%{harfbuzz_version}/harfbuzz-%{harfbuzz_version}.tar.gz
-Source12:       https://github.com/nemtrif/utfcpp/archive/refs/tags/v%{utfcpp_version}/utfcpp-%{utfcpp_version}.tar.gz
-Source13:       https://github.com/mbadolato/iTerm2-Color-Schemes/archive/%{iterm2_color_commit}/iTerm2-Color-Schemes-%{iterm2_color_commit}.tar.gz
-Source14:       https://github.com/vancluever/z2d/archive/%{z2d_commit}/z2d-%{z2d_commit}.tar.gz
-Source15:       https://github.com/KhronosGroup/SPIRV-Cross/archive/%{spirv_cross_commit}/SPIRV-Cross-%{spirv_cross_commit}.tar.gz
+Source10:       https://github.com/nemtrif/utfcpp/archive/refs/tags/v%{utfcpp_version}/utfcpp-%{utfcpp_version}.tar.gz
+Source11:       https://github.com/mbadolato/iTerm2-Color-Schemes/archive/%{iterm2_color_commit}/iTerm2-Color-Schemes-%{iterm2_color_commit}.tar.gz
+Source12:       https://github.com/vancluever/z2d/archive/%{z2d_commit}/z2d-%{z2d_commit}.tar.gz
+Source13:       https://github.com/KhronosGroup/SPIRV-Cross/archive/%{spirv_cross_commit}/SPIRV-Cross-%{spirv_cross_commit}.tar.gz
 # zf requires a different version of libvaxis than ghostty
-Source16:       https://github.com/rockorager/libvaxis/archive/%{libvaxis_commit1}/libvaxis-%{libvaxis_commit1}.tar.gz
-Source17:       https://github.com/rockorager/libvaxis/archive/%{libvaxis_commit2}/libvaxis-%{libvaxis_commit2}.tar.gz
-# sentry is only used for catching errors and not for uploading
-# PR to disable it https://github.com/ghostty-org/ghostty/pull/3934
-Source18:       https://github.com/getsentry/sentry-native/archive/refs/tags/%{sentry_version}/sentry-native-%{sentry_version}.tar.gz
-Source19:       https://github.com/KhronosGroup/glslang/archive/refs/tags/%{glslang_version}/glslang-%{glslang_version}.tar.gz
-Source20:       https://github.com/freetype/freetype/archive/refs/tags/VER-%{freetype_dash_version}.tar.gz#/freetype2-%{freetype_dash_version}.tar.gz
-Source21:       https://github.com/kkos/oniguruma/archive/refs/tags/v%{oniguruma_version}/oniguruma-%{oniguruma_version}.tar.gz
-Source22:       https://github.com/google/highway/archive/refs/tags/%{highway_version}/highway-%{highway_version}.tar.gz
-Source23:       https://github.com/mitchellh/libxev/archive/%{libxev_commit}/libxev-%{libxev_commit}.tar.gz
-Source24:       https://github.com/ocornut/imgui/archive/%{imgui_commit}/imgui-%{imgui_commit}.tar.gz
-Source25:       https://github.com/getsentry/breakpad/archive/%{breakpad_commit}/sentry-breakpad-%{breakpad_commit}.tar.gz
-Source26:       https://github.com/google/wuffs/archive/refs/tags/v%{wuffs_version}/wuffs-%{wuffs_version}.tar.gz
-Source27:       https://github.com/make-github-pseudonymous-again/pixels/archive/%{pixels_commit}/pixels-%{pixels_commit}.tar.gz
-Source28:       https://deps.files.ghostty.org/ziglyph-%{ziglyph_commit}.tar.gz
-Source29:       https://github.com/natecraddock/zf/archive/%{zf_commit}/zf-%{zf_commit}.tar.gz
-Source30:       https://github.com/zigimg/zigimg/archive/%{zigimg_commit}/zigimg-%{zigimg_commit}.tar.gz
-Source31:       https://codeberg.org/atman/zg/archive/v%{zg_version}.tar.gz#/zg-v%{zg_version}.tar.gz
-Source32:       https://codeberg.org/ifreund/zig-wayland/archive/%{zig_wayland_commit}.tar.gz#/zig-wayland-%{zig_wayland_commit}.tar.gz
-Source33:       https://deps.files.ghostty.org/wayland-%{wayland_commit}.tar.gz
-Source34:       https://deps.files.ghostty.org/wayland-protocols-%{wayland_protocols_commit}.tar.gz
-Source35:       https://invent.kde.org/libraries/plasma-wayland-protocols/-/archive/%{plasma_wayland_protocols_commit}/plasma-wayland-protocols-%{plasma_wayland_protocols_commit}.tar.gz
-Source36:       https://github.com/mitchellh/zig-objc/archive/%{zig_objc_commit}/zig-objc-%{zig_objc_commit}.tar.gz
-Source37:       https://github.com/mitchellh/zig-js/archive/%{zig_js_commit}/zig-js-%{zig_js_commit}.tar.gz
+Source14:       https://github.com/rockorager/libvaxis/archive/%{libvaxis_commit1}/libvaxis-%{libvaxis_commit1}.tar.gz
+Source15:       https://github.com/rockorager/libvaxis/archive/%{libvaxis_commit2}/libvaxis-%{libvaxis_commit2}.tar.gz
+Source16:       https://github.com/KhronosGroup/glslang/archive/refs/tags/%{glslang_version}/glslang-%{glslang_version}.tar.gz
+Source17:       https://github.com/google/highway/archive/refs/tags/%{highway_version}/highway-%{highway_version}.tar.gz
+Source18:       https://github.com/mitchellh/libxev/archive/%{libxev_commit}/libxev-%{libxev_commit}.tar.gz
+Source19:       https://github.com/ocornut/imgui/archive/%{imgui_commit}/imgui-%{imgui_commit}.tar.gz
+Source20:       https://github.com/google/wuffs/archive/refs/tags/v%{wuffs_version}/wuffs-%{wuffs_version}.tar.gz
+Source21:       https://deps.files.ghostty.org/ziglyph-%{ziglyph_commit}.tar.gz
+Source22:       https://github.com/natecraddock/zf/archive/%{zf_commit}/zf-%{zf_commit}.tar.gz
+Source23:       https://github.com/zigimg/zigimg/archive/%{zigimg_commit}/zigimg-%{zigimg_commit}.tar.gz
+Source24:       https://codeberg.org/atman/zg/archive/v%{zg_version}.tar.gz#/zg-%{zg_version}.tar.gz
+Source25:       https://github.com/mitchellh/zig-objc/archive/%{zig_objc_commit}/zig-objc-%{zig_objc_commit}.tar.gz
+Source26:       https://github.com/mitchellh/zig-js/archive/%{zig_js_commit}/zig-js-%{zig_js_commit}.tar.gz
+Source27:       https://codeberg.org/ifreund/zig-wayland/archive/%{zig_wayland_commit}.tar.gz#/zig-wayland-%{zig_wayland_commit}.tar.gz
+Source28:       https://deps.files.ghostty.org/wayland-%{wayland_commit}.tar.gz#/ghostty-wayland-%{wayland_commit}.tar.gz
+Source29:       https://deps.files.ghostty.org/wayland-protocols-%{wayland_protocols_commit}.tar.gz#/ghostty-wayland-protocols-%{wayland_protocols_commit}.tar.gz
+Source30:       https://github.com/KDE/plasma-wayland-protocols/archive/%{plasma_protocols_commit}/plasma-wayland-protocols-%{plasma_protocols_commit}.tar.gz
 
 %global source_setup %{lua: \
-    for i = 10, 37 do \
+    for i = 10, 30 do \
         print(" -a " .. i) \
     end \
 }
 
-Provides:       bundled(fontconfig) = %{fontconfig_version}
-Provides:       bundled(harfbuzz) = %{harfbuzz_version}
 Provides:       bundled(utfcpp) = %{utfcpp_version}
 Provides:       bundled(z2d) = %{z2d_commit}
 Provides:       bundled(SPIRV-Cross) = %{spirv_cross_commit}
 Provides:       bundled(libvaxis) = %{libvaxis_commit1}
 Provides:       bundled(libvaxis) = %{libvaxis_commit2}
-Provides:       bundled(sentry-native) = %{sentry_version}
 Provides:       bundled(glslang) = %{glslang_version}
-Provides:       bundled(freetype2) = %{freetype_version}
-Provides:       bundled(oniguruma) = %{oniguruma_version}
 Provides:       bundled(highway) = %{highway_version}
 Provides:       bundled(libxev) = %{libxev_commit}
 Provides:       bundled(imgui) = %{imgui_commit}
-Provides:       bundled(breakpad) = %{breakpad_commit}
 Provides:       bundled(wuffs) = %{wuffs_version}
-Provides:       bundled(pixels) = %{pixels_commit}
 Provides:       bundled(ziglyph) = %{ziglyph_commit}
 Provides:       bundled(zf) = %{zf_commit}
 Provides:       bundled(zigimg) = %{zigimg_commit}
 Provides:       bundled(zg) = %{zg_version}
-Provides:       bundled(zig-wayland) = %{zig_wayland_commit}
-Provides:       bundled(wayland-devel) = %{wayland_commit}
-Provides:       bundled(wayland-protocols-devel) = %{wayland_protocols_commit}
-Provides:       bundled(plasma-wayland-protocols) = %{plasma_wayland_protocols_commit}
 Provides:       bundled(zig-objc) = %{zig_objc_commit}
 Provides:       bundled(zig-js) = %{zig_js_commit}
+Provides:       bundled(zig-wayland) = %{zig_wayland_commit}
+Provides:       bundled(wayland) = %{wayland_commit}
+Provides:       bundled(wayland-protocols) = %{wayland_protocols_commit}
+Provides:       bundled(plasma-wayland-protocols) = %{plasma_protocols_commit}
 # only the generated output is vendored
 Provides:       bundled(glad2) = 2.0.0
 
@@ -220,22 +184,24 @@ ExcludeArch:    %{ix86}
 
 BuildRequires:  (zig >= {{{zig_min_version}}} with zig < {{{zig_max_version}}})
 BuildRequires:  zig-rpm-macros >= 0.13.0-4
-BuildRequires:  git, pandoc, fdupes, desktop-file-utils
+BuildRequires:  git, gcc, pkg-config, fdupes, desktop-file-utils
+BuildRequires:  pkgconfig(simdutf) >= 5.2.8
+
+# font backend
+BuildRequires:  pkgconfig(bzip2)
 BuildRequires:  pkgconfig(freetype2)
 BuildRequires:  pkgconfig(fontconfig)
-BuildRequires:  pkgconfig(glib-2.0)
 BuildRequires:  pkgconfig(harfbuzz)
 BuildRequires:  pkgconfig(libpng)
 BuildRequires:  pkgconfig(zlib-ng)
 BuildRequires:  pkgconfig(oniguruma)
 BuildRequires:  pkgconfig(libxml-2.0)
-BuildRequires:  pkgconfig(simdutf) >= 5.2.8
 # app runtime
 BuildRequires:  pkgconfig(gtk4)
 BuildRequires:  pkgconfig(libadwaita-1)
 BuildRequires:  libX11-devel
-BuildRequires:  wayland-devel
-BuildRequires:  wayland-protocols-devel
+# docs
+BuildRequires:  pandoc-cli
 
 Requires:       %{name}-terminfo = %{version}-%{release}
 Requires:       %{name}-shell-integration = %{version}-%{release}
@@ -322,16 +288,6 @@ BuildArch:      noarch
 
 %{summary}.
 
-%package        nautilus
-Summary:        Nautilus extension for %{name}
-BuildArch:      noarch
-Supplements:    (%{name} = %{version}-%{release} and nautilus)
-
-%description    nautilus
-%{project_summary}.
-
-%{summary}.
-
 %package        neovim-plugin
 Summary:        Neovim plugin for %{name}
 BuildArch:      noarch
@@ -358,6 +314,16 @@ BuildArch:      noarch
 Supplements:    (%{name} = %{version}-%{release} and bat)
 
 %description    bat-syntax
+%{project_summary}.
+
+%{summary}.
+
+%package        nautilus
+Summary:        Nautilus extension for %{name}
+BuildArch:      noarch
+Supplements:    (%{name} = %{version}-%{release} and nautilus)
+
+%description    nautilus
 %{project_summary}.
 
 %{summary}.
@@ -396,42 +362,51 @@ Enhances:       %{name} = %{version}-%{release}
 {{{git_repo_setup_macro}}} %{source_setup}
 
 # Put all packages in the cache
-%zig_fetch fontconfig-%{fontconfig_version}
-%zig_fetch harfbuzz-%{harfbuzz_version}
 %zig_fetch utfcpp-%{utfcpp_version}
 %zig_fetch iTerm2-Color-Schemes-%{iterm2_color_commit}
 %zig_fetch z2d-%{z2d_commit}
 %zig_fetch SPIRV-Cross-%{spirv_cross_commit}
 %zig_fetch libvaxis-%{libvaxis_commit1}
 %zig_fetch libvaxis-%{libvaxis_commit2}
-%zig_fetch sentry-native-%{sentry_version}
 %zig_fetch glslang-%{glslang_version}
-%zig_fetch freetype-VER-%{freetype_dash_version}
-%zig_fetch oniguruma-%{oniguruma_version}
 %zig_fetch highway-%{highway_version}
 %zig_fetch libxev-%{libxev_commit}
 %zig_fetch imgui-%{imgui_commit}
-%zig_fetch breakpad-%{breakpad_commit}
 %zig_fetch wuffs-%{wuffs_version}
-%zig_fetch pixels-%{pixels_commit}
 %zig_fetch ziglyph
 %zig_fetch zf-%{zf_commit}
 %zig_fetch zigimg-%{zigimg_commit}
 %zig_fetch zg
+%zig_fetch zig-objc-%{zig_objc_commit}
+%zig_fetch zig-js-%{zig_js_commit}
 %zig_fetch zig-wayland
 %zig_fetch wayland-main
 %zig_fetch wayland-protocols-main
-%zig_fetch plasma-wayland-protocols-%{plasma_wayland_protocols_commit}
-%zig_fetch zig-objc-%{zig_objc_commit}
-%zig_fetch zig-js-%{zig_js_commit}
+%zig_fetch plasma-wayland-protocols-%{plasma_protocols_commit}
 
 # stubbing some packages that aren't needed
+# this will not be needed once zig implements finer dependency management
+# https://github.com/ziglang/zig/pull/19975
 #   libxml2
 mkdir %{_zig_cache_dir}/p/122032442d95c3b428ae8e526017fad881e7dc78eab4d558e9a58a80bfbd65a64f7d
 #   libpng
 mkdir %{_zig_cache_dir}/p/1220aa013f0c83da3fb64ea6d327f9173fa008d10e28bc9349eac3463457723b1c66
 #   zlib
 mkdir %{_zig_cache_dir}/p/1220fed0c74e1019b3ee29edae2051788b080cd96e90d56836eea857b0b966742efb
+#   freetype
+mkdir %{_zig_cache_dir}/p/1220b81f6ecfb3fd222f76cf9106fecfa6554ab07ec7fdc4124b9bb063ae2adf969d
+#   harfbuzz
+mkdir %{_zig_cache_dir}/p/1220b8588f106c996af10249bfa092c6fb2f35fbacb1505ef477a0b04a7dd1063122
+#   fontconfig
+mkdir %{_zig_cache_dir}/p/12201149afb3326c56c05bb0a577f54f76ac20deece63aa2f5cd6ff31a4fa4fcb3b7
+#   oniguruma
+mkdir %{_zig_cache_dir}/p/1220c15e72eadd0d9085a8af134904d9a0f5dfcbed5f606ad60edc60ebeccd9706bb
+#   pixels
+mkdir %{_zig_cache_dir}/p/12207ff340169c7d40c570b4b6a97db614fe47e0d83b5801a932dcd44917424c8806
+#   sentry-native
+mkdir %{_zig_cache_dir}/p/1220446be831adcca918167647c06c7b825849fa3fba5f22da394667974537a9c77e
+#   breakpad
+mkdir %{_zig_cache_dir}/p/12207fd37bb8251919c112dcdd8f616a491857b34a451f7e4486490077206dc2a1ea
 
 %build
 # Building GTK frontend
@@ -489,15 +464,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 
 %files shell-integration
 %dir %{_datadir}/%{name}
-%{_datadir}/%{name}/shell-integration/bash/bash-preexec.sh
-%{_datadir}/%{name}/shell-integration/bash/%{name}.bash
-%{_datadir}/%{name}/shell-integration/elvish/lib/%{name}-integration.elv
-%{_datadir}/%{name}/shell-integration/fish/vendor_conf.d/%{name}-shell-integration.fish
-%{_datadir}/%{name}/shell-integration/zsh/.zshenv
-%{_datadir}/%{name}/shell-integration/zsh/%{name}-integration
-
-%files nautilus
-%{_datadir}/nautilus-python/extensions/%{project_id}.py
+%{_datadir}/%{name}/shell-integration/
 
 %files neovim-plugin
 %{_datadir}/nvim/site/{compiler,ftdetect,ftplugin,syntax}/%{name}.vim
@@ -508,20 +475,22 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 %files bat-syntax
 %{_datadir}/bat/syntaxes/%{name}.sublime-syntax
 
+%files nautilus
+%{_datadir}/nautilus-python/extensions/%{project_id}.py
+
 %files terminfo
 %{_datadir}/terminfo/g/%{name}
 %{_datadir}/terminfo/x/xterm-%{name}
-%{_datadir}/terminfo/%{name}.term{cap,info}
 
 %files themes
 %dir %{_datadir}/%{name}
-%{_datadir}/%{name}/themes/*
+%{_datadir}/%{name}/themes/
 
 %files docs
 %docdir %{_datadir}/%{name}/doc
-%doc README.md PACKAGING.md CONTRIBUTING.md TODO.md
+%doc README.md
 %dir %{_datadir}/%{name}
-%{_datadir}/%{name}/doc/%{name}.{1,5}.{md,html}
+%{_datadir}/%{name}/doc/
 
 %changelog
 * {{{git_custom_date}}} Arvin Verain <arvinverain@proton.me> - {{{git_custom_package_version}}}-{{{git_custom_release}}}
