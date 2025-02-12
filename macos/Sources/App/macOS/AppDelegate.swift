@@ -93,7 +93,7 @@ class AppDelegate: NSObject,
     }
 
     /// Tracks the windows that we hid for toggleVisibility.
-    private var hiddenWindows: [Weak<NSWindow>] = []
+    private var hiddenState: ToggleVisibilityState? = nil
 
     /// The observer for the app appearance.
     private var appearanceObserver: NSKeyValueObservation? = nil
@@ -217,8 +217,8 @@ class AppDelegate: NSObject,
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        // If we're back then clear the hidden windows
-        self.hiddenWindows = []
+        // If we're back manually then clear the hidden state because macOS handles it.
+        self.hiddenState = nil
 
         // First launch stuff
         if (!applicationHasBecomeActive) {
@@ -245,7 +245,13 @@ class AppDelegate: NSObject,
         // This probably isn't fully safe. The isEmpty check above is aspirational, it doesn't
         // quite work with SwiftUI because windows are retained on close. So instead we check
         // if there are any that are visible. I'm guessing this breaks under certain scenarios.
-        if (windows.allSatisfy { !$0.isVisible }) { return .terminateNow }
+        //
+        // NOTE(mitchellh): I don't think we need this check at all anymore. I'm keeping it
+        // here because I don't want to remove it in a patch release cycle but we should
+        // target removing it soon.
+        if (self.quickController == nil && windows.allSatisfy { !$0.isVisible }) {
+            return .terminateNow
+        }
 
         // If the user is shutting down, restarting, or logging out, we don't confirm quit.
         why: if let event = NSAppleEventManager.shared().currentAppleEvent {
@@ -431,7 +437,7 @@ class AppDelegate: NSObject,
         // If we have a main window then we don't process any of the keys
         // because we let it capture and propagate.
         guard NSApp.mainWindow == nil else { return event }
-        
+
         // If this event as-is would result in a key binding then we send it.
         if let app = ghostty.app,
            ghostty_app_key_is_binding(
@@ -447,26 +453,26 @@ class AppDelegate: NSObject,
                 return nil
             }
         }
-        
+
         // If this event would be handled by our menu then we do nothing.
         if let mainMenu = NSApp.mainMenu,
            mainMenu.performKeyEquivalent(with: event) {
             return nil
         }
-        
+
         // If we reach this point then we try to process the key event
         // through the Ghostty key mechanism.
-        
+
         // Ghostty must be loaded
         guard let ghostty = self.ghostty.app else { return event }
-        
+
         // Build our event input and call ghostty
         if (ghostty_app_key(ghostty, event.ghosttyKeyEvent(GHOSTTY_ACTION_PRESS))) {
             // The key was used so we want to stop it from going to our Mac app
             Ghostty.logger.debug("local key event handled event=\(event)")
             return nil
         }
-        
+
         return event
     }
 
@@ -556,6 +562,30 @@ class AppDelegate: NSObject,
         case .official:
             self.appIcon = nil
             break
+
+        case .blueprint:
+            self.appIcon = NSImage(named: "BlueprintImage")!
+
+        case .chalkboard:
+            self.appIcon = NSImage(named: "ChalkboardImage")!
+
+        case .glass:
+            self.appIcon = NSImage(named: "GlassImage")!
+
+        case .holographic:
+            self.appIcon = NSImage(named: "HolographicImage")!
+
+        case .microchip:
+            self.appIcon = NSImage(named: "MicrochipImage")!
+
+        case .paper:
+            self.appIcon = NSImage(named: "PaperImage")!
+
+        case .retro:
+            self.appIcon = NSImage(named: "RetroImage")!
+
+        case .xray:
+            self.appIcon = NSImage(named: "XrayImage")!
 
         case .customStyle:
             guard let ghostColor = config.macosIconGhostColor else { break }
@@ -709,21 +739,15 @@ class AppDelegate: NSObject,
 
     /// Toggles visibility of all Ghosty Terminal windows. When hidden, activates Ghostty as the frontmost application
     @IBAction func toggleVisibility(_ sender: Any) {
-        // Toggle visibility doesn't do anything if the focused window is native
-        // fullscreen.
-        guard let keyWindow = NSApp.keyWindow,
-              !keyWindow.styleMask.contains(.fullScreen) else { return }
-
         // If we have focus, then we hide all windows.
         if NSApp.isActive {
-            // We need to keep track of the windows that were visible because we only
-            // want to bring back these windows if we remove the toggle.
-            //
-            // We also ignore fullscreen windows because they don't hide anyways.
-            self.hiddenWindows = NSApp.windows.filter {
-                $0.isVisible &&
-                !$0.styleMask.contains(.fullScreen)
-            }.map { Weak($0) }
+            // Toggle visibility doesn't do anything if the focused window is native
+            // fullscreen. This is only relevant if Ghostty is active.
+            guard let keyWindow = NSApp.keyWindow,
+                  !keyWindow.styleMask.contains(.fullScreen) else { return }
+
+            // Keep track of our hidden state to restore properly
+            self.hiddenState = .init()
             NSApp.hide(nil)
             return
         }
@@ -734,8 +758,8 @@ class AppDelegate: NSObject,
         // Bring all windows to the front. Note: we don't use NSApp.unhide because
         // that will unhide ALL hidden windows. We want to only bring forward the
         // ones that we hid.
-        self.hiddenWindows.forEach { $0.value?.orderFrontRegardless() }
-        self.hiddenWindows = []
+        hiddenState?.restore()
+        hiddenState = nil
     }
 
     private struct DerivedConfig {
@@ -753,6 +777,35 @@ class AppDelegate: NSObject,
             self.initialWindow = config.initialWindow
             self.shouldQuitAfterLastWindowClosed = config.shouldQuitAfterLastWindowClosed
             self.quickTerminalPosition = config.quickTerminalPosition
+        }
+    }
+
+    private struct ToggleVisibilityState {
+        let hiddenWindows: [Weak<NSWindow>]
+        let keyWindow: Weak<NSWindow>?
+
+        init() {
+            // We need to know the key window so that we can bring focus back to the
+            // right window if it was hidden.
+            self.keyWindow = if let keyWindow = NSApp.keyWindow {
+                .init(keyWindow)
+            } else {
+                nil
+            }
+
+            // We need to keep track of the windows that were visible because we only
+            // want to bring back these windows if we remove the toggle.
+            //
+            // We also ignore fullscreen windows because they don't hide anyways.
+            self.hiddenWindows = NSApp.windows.filter {
+                $0.isVisible &&
+                !$0.styleMask.contains(.fullScreen)
+            }.map { Weak($0) }
+        }
+
+        func restore() {
+            hiddenWindows.forEach { $0.value?.orderFrontRegardless() }
+            keyWindow?.value?.makeKey()
         }
     }
 }
