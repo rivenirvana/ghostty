@@ -28,7 +28,9 @@ class AppDelegate: NSObject,
     @IBOutlet private var menuNewWindow: NSMenuItem?
     @IBOutlet private var menuNewTab: NSMenuItem?
     @IBOutlet private var menuSplitRight: NSMenuItem?
+    @IBOutlet private var menuSplitLeft: NSMenuItem?
     @IBOutlet private var menuSplitDown: NSMenuItem?
+    @IBOutlet private var menuSplitUp: NSMenuItem?
     @IBOutlet private var menuClose: NSMenuItem?
     @IBOutlet private var menuCloseTab: NSMenuItem?
     @IBOutlet private var menuCloseWindow: NSMenuItem?
@@ -41,6 +43,7 @@ class AppDelegate: NSObject,
 
     @IBOutlet private var menuToggleVisibility: NSMenuItem?
     @IBOutlet private var menuToggleFullScreen: NSMenuItem?
+    @IBOutlet private var menuBringAllToFront: NSMenuItem?
     @IBOutlet private var menuZoomSplit: NSMenuItem?
     @IBOutlet private var menuPreviousSplit: NSMenuItem?
     @IBOutlet private var menuNextSplit: NSMenuItem?
@@ -52,6 +55,7 @@ class AppDelegate: NSObject,
     @IBOutlet private var menuIncreaseFontSize: NSMenuItem?
     @IBOutlet private var menuDecreaseFontSize: NSMenuItem?
     @IBOutlet private var menuResetFontSize: NSMenuItem?
+    @IBOutlet private var menuChangeTitle: NSMenuItem?
     @IBOutlet private var menuQuickTerminal: NSMenuItem?
     @IBOutlet private var menuTerminalInspector: NSMenuItem?
 
@@ -361,7 +365,9 @@ class AppDelegate: NSObject,
         syncMenuShortcut(config, action: "close_window", menuItem: self.menuCloseWindow)
         syncMenuShortcut(config, action: "close_all_windows", menuItem: self.menuCloseAllWindows)
         syncMenuShortcut(config, action: "new_split:right", menuItem: self.menuSplitRight)
+        syncMenuShortcut(config, action: "new_split:left", menuItem: self.menuSplitLeft)
         syncMenuShortcut(config, action: "new_split:down", menuItem: self.menuSplitDown)
+        syncMenuShortcut(config, action: "new_split:up", menuItem: self.menuSplitUp)
 
         syncMenuShortcut(config, action: "copy_to_clipboard", menuItem: self.menuCopy)
         syncMenuShortcut(config, action: "paste_from_clipboard", menuItem: self.menuPaste)
@@ -384,6 +390,7 @@ class AppDelegate: NSObject,
         syncMenuShortcut(config, action: "increase_font_size:1", menuItem: self.menuIncreaseFontSize)
         syncMenuShortcut(config, action: "decrease_font_size:1", menuItem: self.menuDecreaseFontSize)
         syncMenuShortcut(config, action: "reset_font_size", menuItem: self.menuResetFontSize)
+        syncMenuShortcut(config, action: "change_title_prompt", menuItem: self.menuChangeTitle)
         syncMenuShortcut(config, action: "toggle_quick_terminal", menuItem: self.menuQuickTerminal)
         syncMenuShortcut(config, action: "toggle_visibility", menuItem: self.menuToggleVisibility)
         syncMenuShortcut(config, action: "inspector:toggle", menuItem: self.menuTerminalInspector)
@@ -529,6 +536,15 @@ class AppDelegate: NSObject,
         // this is called as part of application launch it can deadlock with an internal
         // AppKit mutex on the appearance.
         DispatchQueue.main.async { self.syncAppearance(config: config) }
+
+        // Decide whether to hide/unhide app from dock and app switcher
+        switch (config.macosHidden) {
+        case .never:
+            NSApp.setActivationPolicy(.regular)
+
+        case .always:
+            NSApp.setActivationPolicy(.accessory)
+        }
 
         // If we have configuration errors, we need to show them.
         let c = ConfigurationErrorsController.sharedInstance
@@ -760,6 +776,14 @@ class AppDelegate: NSObject,
         // ones that we hid.
         hiddenState?.restore()
         hiddenState = nil
+    }
+    
+    @IBAction func bringAllToFront(_ sender: Any) {
+        if !NSApp.isActive {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        
+        NSApplication.shared.arrangeInFront(sender)
     }
 
     private struct DerivedConfig {

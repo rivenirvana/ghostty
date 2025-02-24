@@ -34,6 +34,7 @@ const KeyValue = @import("key.zig").Value;
 const ErrorList = @import("ErrorList.zig");
 const MetricModifier = fontpkg.Metrics.Modifier;
 const help_strings = @import("help_strings");
+const RepeatableStringMap = @import("RepeatableStringMap.zig");
 
 const log = std.log.scoped(.config);
 
@@ -49,6 +50,7 @@ pub const renamed = std.StaticStringMap([]const u8).initComptime(&.{
     // one field be used for both platforms (macOS retained the ability
     // to set a radius).
     .{ "background-blur-radius", "background-blur" },
+    .{ "adw-toolbar-style", "gtk-toolbar-style" },
 });
 
 /// The font families to use.
@@ -735,6 +737,42 @@ command: ?[]const u8 = null,
 ///
 @"initial-command": ?[]const u8 = null,
 
+/// Extra environment variables to pass to commands launched in a terminal
+/// surface. The format is `env=KEY=VALUE`.
+///
+/// `env = foo=bar`
+/// `env = bar=baz`
+///
+/// Setting `env` to an empty string will reset the entire map to default
+/// (empty).
+///
+/// `env =`
+///
+/// Setting a key to an empty string will remove that particular key and
+/// corresponding value from the map.
+///
+/// `env = foo=bar`
+/// `env = foo=`
+///
+/// will result in `foo` not being passed to the launched commands.
+///
+/// Setting a key multiple times will overwrite previous entries.
+///
+/// `env = foo=bar`
+/// `env = foo=baz`
+///
+/// will result in `foo=baz` being passed to the launched commands.
+///
+/// These environment variables will override any existing environment
+/// variables set by Ghostty. For example, if you set `GHOSTTY_RESOURCES_DIR`
+/// then the value you set here will override the value Ghostty typically
+/// automatically injects.
+///
+/// These environment variables _will not_ be passed to commands run by Ghostty
+/// for other purposes, like `open` or `xdg-open` used to open URLs in your
+/// browser.
+env: RepeatableStringMap = .{},
+
 /// If true, keep the terminal open after the command exits. Normally, the
 /// terminal window closes when the running command (such as a shell) exits.
 /// With this true, the terminal window will stay open until any keypress is
@@ -1174,12 +1212,7 @@ keybind: Keybinds = .{},
 /// Windows).
 ///
 /// The "toggle_window_decorations" keybind action can be used to create
-/// a keybinding to toggle this setting at runtime. This will always toggle
-/// back to "auto" if the current value is "none" (this is an issue
-/// that will be fixed in the future).
-///
-/// Changing this configuration in your configuration and reloading will
-/// only affect new windows. Existing windows will not be affected.
+/// a keybinding to toggle this setting at runtime.
 ///
 /// macOS: To hide the titlebar without removing the native window borders
 ///        or rounded corners, use `macos-titlebar-style = hidden` instead.
@@ -1199,7 +1232,7 @@ keybind: Keybinds = .{},
 ///   * `working-directory` - Set the subtitle to the working directory of the
 ///      surface.
 ///
-/// This feature is only supported on GTK with Adwaita enabled.
+/// This feature is only supported on GTK.
 @"window-subtitle": WindowSubtitle = .false,
 
 /// The theme to use for the windows. Valid values:
@@ -1212,8 +1245,7 @@ keybind: Keybinds = .{},
 ///   * `light` - Use the light theme regardless of system theme.
 ///   * `dark` - Use the dark theme regardless of system theme.
 ///   * `ghostty` - Use the background and foreground colors specified in the
-///     Ghostty configuration. This is only supported on Linux builds with
-///     Adwaita and `gtk-adwaita` enabled.
+///     Ghostty configuration. This is only supported on Linux builds.
 ///
 /// On macOS, if `macos-titlebar-style` is "tabs", the window theme will be
 /// automatically set based on the luminosity of the terminal background color.
@@ -1286,8 +1318,8 @@ keybind: Keybinds = .{},
 /// window will be placed below the menu bar.
 ///
 /// Note: this is only supported on macOS and Linux GLFW builds. The GTK
-/// runtime does not support setting the window position (this is a limitation
-/// of GTK 4.0).
+/// runtime does not support setting the window position, as windows are
+/// only allowed position themselves in X11 and not Wayland.
 @"window-position-x": ?i16 = null,
 @"window-position-y": ?i16 = null,
 
@@ -1779,9 +1811,9 @@ keybind: Keybinds = .{},
 
 /// Control the in-app notifications that Ghostty shows.
 ///
-/// On Linux (GTK) with Adwaita, in-app notifications show up as toasts. Toasts
-/// appear overlaid on top of the terminal window. They are used to show
-/// information that is not critical but may be important.
+/// On Linux (GTK), in-app notifications show up as toasts. Toasts appear
+/// overlaid on top of the terminal window. They are used to show information
+/// that is not critical but may be important.
 ///
 /// Possible notifications are:
 ///
@@ -1799,7 +1831,7 @@ keybind: Keybinds = .{},
 /// A value of "false" will disable all notifications. A value of "true" will
 /// enable all notifications.
 ///
-/// This configuration only applies to GTK with Adwaita enabled.
+/// This configuration only applies to GTK.
 @"app-notifications": AppNotifications = .{},
 
 /// If anything other than false, fullscreen mode on macOS will not use the
@@ -1819,9 +1851,14 @@ keybind: Keybinds = .{},
 ///
 /// Allowable values are:
 ///
-///   * `visible-menu` - Use non-native macOS fullscreen, keep the menu bar visible
 ///   * `true` - Use non-native macOS fullscreen, hide the menu bar
 ///   * `false` - Use native macOS fullscreen
+///   * `visible-menu` - Use non-native macOS fullscreen, keep the menu bar
+///     visible
+///   * `padded-notch` - Use non-native macOS fullscreen, hide the menu bar,
+///     but ensure the window is not obscured by the notch on applicable
+///     devices. The area around the notch will remain transparent currently,
+///     but in the future we may fill it with the window background color.
 ///
 /// Changing this option at runtime works, but will only apply to the next
 /// time the window is made fullscreen. If a window is already fullscreen,
@@ -1932,6 +1969,26 @@ keybind: Keybinds = .{},
 /// find false more visually appealing.
 @"macos-window-shadow": bool = true,
 
+/// If true, the macOS icon in the dock and app switcher will be hidden. This is
+/// mainly intended for those primarily using the quick-terminal mode.
+///
+/// Note that setting this to true means that keyboard layout changes
+/// will no longer be automatic.
+///
+/// Control whether macOS app is excluded from the dock and app switcher,
+/// a "hidden" state. This is mainly intended for those primarily using
+/// quick-terminal mode, but is a general configuration for any use
+/// case.
+///
+/// Available values:
+///
+///   * `never` - The macOS app is never hidden.
+///   * `always` - The macOS app is always hidden.
+///
+/// Note: When the macOS application is hidden, keyboard layout changes
+/// will no longer be automatic. This is a limitation of macOS.
+@"macos-hidden": MacHidden = .never,
+
 /// If true, Ghostty on macOS will automatically enable the "Secure Input"
 /// feature when it detects that a password prompt is being displayed.
 ///
@@ -2003,7 +2060,9 @@ keybind: Keybinds = .{},
 ///  * `plastic` - A glossy, dark plastic frame.
 ///  * `chrome` - A shiny chrome frame.
 ///
-/// This only has an effect when `macos-icon` is set to `custom-style`.
+/// Note: This configuration is required when `macos-icon` is set to
+/// `custom-style`.
+///
 @"macos-icon-frame": MacAppIconFrame = .aluminum,
 
 /// The color of the ghost in the macOS app icon.
@@ -2011,21 +2070,20 @@ keybind: Keybinds = .{},
 /// Note: This configuration is required when `macos-icon` is set to
 /// `custom-style`.
 ///
-/// This only has an effect when `macos-icon` is set to `custom-style`.
-///
 /// Specified as either hex (`#RRGGBB` or `RRGGBB`) or a named X11 color.
 @"macos-icon-ghost-color": ?Color = null,
 
 /// The color of the screen in the macOS app icon.
 ///
-/// The screen is a gradient so you can specify multiple colors that
-/// make up the gradient. Comma-separated colors may be specified as
-/// as either hex (`#RRGGBB` or `RRGGBB`) or as named X11 colors.
+/// The screen is a linear gradient so you can specify multiple colors
+/// that make up the gradient. Up to 64 comma-separated colors may be
+/// specified as either hex (`#RRGGBB` or `RRGGBB`) or as named X11
+/// colors. The first color is the bottom of the gradient and the last
+/// color is the top of the gradient.
 ///
 /// Note: This configuration is required when `macos-icon` is set to
 /// `custom-style`.
 ///
-/// This only has an effect when `macos-icon` is set to `custom-style`.
 @"macos-icon-screen-color": ?ColorList = null,
 
 /// Put every surface (tab, split, window) into a dedicated Linux cgroup.
@@ -2118,32 +2176,23 @@ keybind: Keybinds = .{},
 ///
 /// This option does nothing when `window-decoration` is false or when running
 /// under macOS.
-///
-/// Changing this value at runtime and reloading the configuration will only
-/// affect new windows.
 @"gtk-titlebar": bool = true,
 
 /// Determines the side of the screen that the GTK tab bar will stick to.
-/// Top, bottom, left, right, and hidden are supported. The default is top.
+/// Top, bottom, and hidden are supported. The default is top.
 ///
-/// If this option has value `left` or `right` when using Adwaita, it falls
-/// back to `top`. `hidden`, meaning that tabs don't exist, is not supported
-/// without using Adwaita, falling back to `top`.
-///
-/// When `hidden` is set and Adwaita is enabled, a tab button displaying the
-/// number of tabs will appear in the title bar. It has the ability to open a
-/// tab overview for displaying tabs. Alternatively, you can use the
-/// `toggle_tab_overview` action in a keybind if your window doesn't have a
-/// title bar, or you can switch tabs with keybinds.
+/// When `hidden` is set, a tab button displaying the number of tabs will appear
+/// in the title bar. It has the ability to open a tab overview for displaying
+/// tabs. Alternatively, you can use the `toggle_tab_overview` action in a
+/// keybind if your window doesn't have a title bar, or you can switch tabs
+/// with keybinds.
 @"gtk-tabs-location": GtkTabsLocation = .top,
 
 /// If this is `true`, the titlebar will be hidden when the window is maximized,
 /// and shown when the titlebar is unmaximized. GTK only.
 @"gtk-titlebar-hide-when-maximized": bool = false,
 
-/// Determines the appearance of the top and bottom bars when using the
-/// Adwaita tab bar. This requires `gtk-adwaita` to be enabled (it is
-/// by default).
+/// Determines the appearance of the top and bottom bars tab bar.
 ///
 /// Valid values are:
 ///
@@ -2151,29 +2200,13 @@ keybind: Keybinds = .{},
 ///  * `raised` - Top and bottom bars cast a shadow on the terminal area.
 ///  * `raised-border` - Similar to `raised` but the shadow is replaced with a
 ///    more subtle border.
-///
-/// Changing this value at runtime will only affect new windows.
-@"adw-toolbar-style": AdwToolbarStyle = .raised,
+@"gtk-toolbar-style": GtkToolbarStyle = .raised,
 
 /// If `true` (default), then the Ghostty GTK tabs will be "wide." Wide tabs
 /// are the new typical Gnome style where tabs fill their available space.
 /// If you set this to `false` then tabs will only take up space they need,
 /// which is the old style.
 @"gtk-wide-tabs": bool = true,
-
-/// If `true` (default), Ghostty will enable Adwaita theme support. This
-/// will make `window-theme` work properly and will also allow Ghostty to
-/// properly respond to system theme changes, light/dark mode changing, etc.
-/// This requires a GTK4 desktop with a GTK4 theme.
-///
-/// If you are running GTK3 or have a GTK3 theme, you may have to set this
-/// to false to get your theme picked up properly. Having this set to true
-/// with GTK3 should not cause any problems, but it may not work exactly as
-/// expected.
-///
-/// This configuration only has an effect if Ghostty was built with
-/// Adwaita support.
-@"gtk-adwaita": bool = true,
 
 /// Custom CSS files to be loaded.
 ///
@@ -2202,6 +2235,34 @@ term: []const u8 = "xterm-ghostty",
 /// String to send when we receive `ENQ` (`0x05`) from the command that we are
 /// running. Defaults to an empty string if not set.
 @"enquiry-response": []const u8 = "",
+
+/// Configures the low-level API to use for async IO, eventing, etc.
+///
+/// Most users should leave this set to `auto`. This will automatically detect
+/// scenarios where APIs may not be available (for example `io_uring` on
+/// certain hardened kernels) and fall back to a different API. However, if
+/// you want to force a specific backend for any reason, you can set this
+/// here.
+///
+/// Based on various benchmarks, we haven't found a statistically significant
+/// difference between the backends with regards to memory, CPU, or latency.
+/// The choice of backend is more about compatibility and features.
+///
+/// Available options:
+///
+///   * `auto` - Automatically choose the best backend for the platform
+///     based on available options.
+///   * `epoll` - Use the `epoll` API
+///   * `io_uring` - Use the `io_uring` API
+///
+/// If the selected backend is not available on the platform, Ghostty will
+/// fall back to an automatically chosen backend that is available.
+///
+/// Changing this value requires a full application restart to take effect.
+///
+/// This is only supported on Linux, since this is the only platform
+/// where we have multiple options. On macOS, we always use `kqueue`.
+@"async-backend": AsyncBackend = .auto,
 
 /// Control the auto-update functionality of Ghostty. This is only supported
 /// on macOS currently, since Linux builds are distributed via package
@@ -2580,7 +2641,7 @@ pub fn default(alloc_gpa: Allocator) Allocator.Error!Config {
         );
         try result.keybind.set.put(
             alloc,
-            .{ .key = .{ .translated = .equal }, .mods = .{ .super = true, .ctrl = true, .shift = true } },
+            .{ .key = .{ .translated = .plus }, .mods = .{ .super = true, .ctrl = true, .shift = true } },
             .{ .equalize_splits = {} },
         );
 
@@ -4095,6 +4156,7 @@ pub const NonNativeFullscreen = enum(c_int) {
     false,
     true,
     @"visible-menu",
+    @"padded-notch",
 };
 
 /// Valid values for macos-option-as-alt.
@@ -4143,14 +4205,16 @@ pub const Color = struct {
 
     pub fn parseCLI(input_: ?[]const u8) !Color {
         const input = input_ orelse return error.ValueRequired;
+        // Trim any whitespace before processing
+        const trimmed = std.mem.trim(u8, input, " \t");
 
-        if (terminal.x11_color.map.get(input)) |rgb| return .{
+        if (terminal.x11_color.map.get(trimmed)) |rgb| return .{
             .r = rgb.r,
             .g = rgb.g,
             .b = rgb.b,
         };
 
-        return fromHex(input);
+        return fromHex(trimmed);
     }
 
     /// Deep copy of the struct. Required by Config.
@@ -4238,6 +4302,18 @@ pub const Color = struct {
         try color.formatEntry(formatterpkg.entryFormatter("a", buf.writer()));
         try std.testing.expectEqualSlices(u8, "a = #0a0b0c\n", buf.items);
     }
+
+    test "parseCLI with whitespace" {
+        const testing = std.testing;
+        try testing.expectEqual(
+            Color{ .r = 0xAA, .g = 0xBB, .b = 0xCC },
+            try Color.parseCLI(" #AABBCC   "),
+        );
+        try testing.expectEqual(
+            Color{ .r = 0, .g = 0, .b = 0 },
+            try Color.parseCLI("  black "),
+        );
+    }
 };
 
 pub const ColorList = struct {
@@ -4277,7 +4353,9 @@ pub const ColorList = struct {
             count += 1;
             if (count > 64) return error.InvalidValue;
 
-            const color = try Color.parseCLI(raw);
+            // Trim whitespace from each color value
+            const trimmed = std.mem.trim(u8, raw, " \t");
+            const color = try Color.parseCLI(trimmed);
             try self.colors.append(alloc, color);
             try self.colors_c.append(alloc, color.cval());
         }
@@ -4346,6 +4424,14 @@ pub const ColorList = struct {
         try p.parseCLI(alloc, "black,white");
         try testing.expectEqual(2, p.colors.items.len);
 
+        // Test whitespace handling
+        try p.parseCLI(alloc, "black, white"); // space after comma
+        try testing.expectEqual(2, p.colors.items.len);
+        try p.parseCLI(alloc, "black , white"); // spaces around comma
+        try testing.expectEqual(2, p.colors.items.len);
+        try p.parseCLI(alloc, " black , white "); // extra spaces at ends
+        try testing.expectEqual(2, p.colors.items.len);
+
         // Error cases
         try testing.expectError(error.ValueRequired, p.parseCLI(alloc, null));
         try testing.expectError(error.InvalidValue, p.parseCLI(alloc, " "));
@@ -4383,7 +4469,14 @@ pub const Palette = struct {
         const eqlIdx = std.mem.indexOf(u8, value, "=") orelse
             return error.InvalidValue;
 
-        const key = try std.fmt.parseInt(u8, value[0..eqlIdx], 0);
+        // Parse the key part (trim whitespace)
+        const key = try std.fmt.parseInt(
+            u8,
+            std.mem.trim(u8, value[0..eqlIdx], " \t"),
+            0,
+        );
+
+        // Parse the color part (Color.parseCLI will handle whitespace)
         const rgb = try Color.parseCLI(value[eqlIdx + 1 ..]);
         self.value[key] = .{ .r = rgb.r, .g = rgb.g, .b = rgb.b };
     }
@@ -4460,6 +4553,27 @@ pub const Palette = struct {
         var list: Self = .{};
         try list.formatEntry(formatterpkg.entryFormatter("a", buf.writer()));
         try std.testing.expectEqualSlices(u8, "a = 0=#1d1f21\n", buf.items[0..14]);
+    }
+
+    test "parseCLI with whitespace" {
+        const testing = std.testing;
+
+        var p: Self = .{};
+        try p.parseCLI("0 =  #AABBCC");
+        try p.parseCLI(" 1= #DDEEFF    ");
+        try p.parseCLI("  2  =  #123456 ");
+
+        try testing.expect(p.value[0].r == 0xAA);
+        try testing.expect(p.value[0].g == 0xBB);
+        try testing.expect(p.value[0].b == 0xCC);
+
+        try testing.expect(p.value[1].r == 0xDD);
+        try testing.expect(p.value[1].g == 0xEE);
+        try testing.expect(p.value[1].b == 0xFF);
+
+        try testing.expect(p.value[2].r == 0x12);
+        try testing.expect(p.value[2].g == 0x34);
+        try testing.expect(p.value[2].b == 0x56);
     }
 };
 
@@ -5715,6 +5829,12 @@ pub const MacTitlebarProxyIcon = enum {
     hidden,
 };
 
+/// See macos-hidden
+pub const MacHidden = enum {
+    never,
+    always,
+};
+
 /// See macos-icon
 ///
 /// Note: future versions of Ghostty can support a custom icon with
@@ -5752,13 +5872,11 @@ pub const GtkSingleInstance = enum {
 pub const GtkTabsLocation = enum {
     top,
     bottom,
-    left,
-    right,
     hidden,
 };
 
-/// See adw-toolbar-style
-pub const AdwToolbarStyle = enum {
+/// See gtk-toolbar-style
+pub const GtkToolbarStyle = enum {
     flat,
     raised,
     @"raised-border",
@@ -5873,6 +5991,13 @@ pub const LinuxCgroup = enum {
     never,
     always,
     @"single-instance",
+};
+
+/// See async-backend
+pub const AsyncBackend = enum {
+    auto,
+    epoll,
+    io_uring,
 };
 
 /// See auto-updates

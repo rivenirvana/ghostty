@@ -519,17 +519,19 @@ pub fn init(
     // This separate block ({}) is important because our errdefers must
     // be scoped here to be valid.
     {
-        var env_ = rt_surface.defaultTermioEnv() catch |err| env: {
+        var env = rt_surface.defaultTermioEnv() catch |err| env: {
             // If an error occurs, we don't want to block surface startup.
             log.warn("error getting env map for surface err={}", .{err});
-            break :env null;
+            break :env internal_os.getEnvMap(alloc) catch
+                std.process.EnvMap.init(alloc);
         };
-        errdefer if (env_) |*env| env.deinit();
+        errdefer env.deinit();
 
         // Initialize our IO backend
         var io_exec = try termio.Exec.init(alloc, .{
             .command = command,
-            .env = env_,
+            .env = env,
+            .env_override = config.env,
             .shell_integration = config.@"shell-integration",
             .shell_integration_features = config.@"shell-integration-features",
             .working_directory = config.@"working-directory",
@@ -4023,6 +4025,12 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
             try self.setFontSize(size);
         },
 
+        .prompt_surface_title => return try self.rt_app.performAction(
+            .{ .surface = self },
+            .prompt_title,
+            {},
+        ),
+
         .clear_screen => {
             // This is a duplicate of some of the logic in termio.clearScreen
             // but we need to do this here so we can know the answer before
@@ -4200,6 +4208,7 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
                 .false => .native,
                 .true => .macos_non_native,
                 .@"visible-menu" => .macos_non_native_visible_menu,
+                .@"padded-notch" => .macos_non_native_padded_notch,
             },
         ),
 

@@ -212,6 +212,9 @@ class TerminalController: BaseTerminalController {
         // Set our explicit appearance if we need to based on the configuration.
         window.appearance = surfaceConfig.windowAppearance
 
+        // Update our window light/darkness based on our updated background color
+        window.isLightTheme = OSColor(surfaceConfig.backgroundColor).isLightColor
+
         // If our window is not visible, then we do nothing. Some things such as blurring
         // have no effect if the window is not visible. Ultimately, we'll have this called
         // at some point when a surface becomes focused.
@@ -709,13 +712,21 @@ class TerminalController: BaseTerminalController {
         // If our index is the same we do nothing
         guard finalIndex != selectedIndex else { return }
 
-        // Get our parent
-        let parent = tabbedWindows[finalIndex]
+        // Get our target window
+        let targetWindow = tabbedWindows[finalIndex]
 
-        // Move our current selected window to the proper index
+        // Begin a group of window operations to minimize visual updates
+        NSAnimationContext.beginGrouping()
+        NSAnimationContext.current.duration = 0
+
+        // Remove and re-add the window in the correct position
         tabGroup.removeWindow(selectedWindow)
-        parent.addTabbedWindow(selectedWindow, ordered: action.amount < 0 ? .below : .above)
-        selectedWindow.makeKeyAndOrderFront(nil)
+        targetWindow.addTabbedWindow(selectedWindow, ordered: action.amount < 0 ? .below : .above)
+
+        // Ensure our window remains selected
+        selectedWindow.makeKey()
+
+        NSAnimationContext.endGrouping()
     }
 
     @objc private func onGotoTab(notification: SwiftUI.Notification) {

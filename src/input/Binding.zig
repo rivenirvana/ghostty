@@ -348,6 +348,9 @@ pub const Action = union(enum) {
     /// This only works with libadwaita enabled currently.
     toggle_tab_overview: void,
 
+    /// Change the title of the current focused surface via a prompt.
+    prompt_surface_title: void,
+
     /// Create a new split in the given direction.
     ///
     /// Arguments:
@@ -748,6 +751,7 @@ pub const Action = union(enum) {
             .increase_font_size,
             .decrease_font_size,
             .reset_font_size,
+            .prompt_surface_title,
             .clear_screen,
             .select_all,
             .scroll_to_top,

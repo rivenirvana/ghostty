@@ -239,6 +239,7 @@ pub const App = struct {
             .pwd,
             .config_change,
             .toggle_maximize,
+            .prompt_title,
             => {
                 log.info("unimplemented action={}", .{action});
                 return false;
@@ -880,9 +881,8 @@ pub const Surface = struct {
         };
     }
 
-    pub fn defaultTermioEnv(self: *Surface) !?std.process.EnvMap {
-        _ = self;
-        return null;
+    pub fn defaultTermioEnv(self: *Surface) !std.process.EnvMap {
+        return try internal_os.getEnvMap(self.app.app.alloc);
     }
 
     fn sizeCallback(window: glfw.Window, width: i32, height: i32) void {

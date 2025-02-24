@@ -14,6 +14,7 @@
   python3,
   qemu,
   scdoc,
+  snapcraft,
   valgrind,
   #, vulkan-loader # unused
   vttest,
@@ -32,6 +33,7 @@
   gtk4,
   gobject-introspection,
   libadwaita,
+  blueprint-compiler,
   adwaita-icon-theme,
   hicolor-icon-theme,
   harfbuzz,
@@ -48,6 +50,7 @@
   simdutf,
   zlib,
   alejandra,
+  jq,
   minisign,
   pandoc,
   hyperfine,
@@ -96,6 +99,7 @@ in
     packages =
       [
         # For builds
+        jq
         llvmPackages_latest.llvm
         minisign
         ncurses
@@ -134,6 +138,7 @@ in
         qemu
 
         gdb
+        snapcraft
         valgrind
         wraptest
 
@@ -159,6 +164,7 @@ in
         libXrandr
 
         # Only needed for GTK builds
+        blueprint-compiler
         libadwaita
         gtk4
         glib

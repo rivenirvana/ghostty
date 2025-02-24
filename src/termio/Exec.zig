@@ -9,7 +9,7 @@ const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const posix = std.posix;
-const xev = @import("xev");
+const xev = @import("../global.zig").xev;
 const build_config = @import("../build_config.zig");
 const configpkg = @import("../config.zig");
 const crash = @import("../crash/main.zig");
@@ -589,7 +589,7 @@ fn ttyWrite(
     _: *xev.Completion,
     _: xev.Stream,
     _: xev.WriteBuffer,
-    r: xev.Stream.WriteError!usize,
+    r: xev.WriteError!usize,
 ) xev.CallbackAction {
     const td = td_.?;
     td.write_req_pool.put();
@@ -634,13 +634,13 @@ pub const ThreadData = struct {
 
     /// This is the pool of available (unused) write requests. If you grab
     /// one from the pool, you must put it back when you're done!
-    write_req_pool: SegmentedPool(xev.Stream.WriteRequest, WRITE_REQ_PREALLOC) = .{},
+    write_req_pool: SegmentedPool(xev.WriteRequest, WRITE_REQ_PREALLOC) = .{},
 
     /// The pool of available buffers for writing to the pty.
     write_buf_pool: SegmentedPool([64]u8, WRITE_REQ_PREALLOC) = .{},
 
     /// The write queue for the data stream.
-    write_queue: xev.Stream.WriteQueue = .{},
+    write_queue: xev.WriteQueue = .{},
 
     /// This is used for both waiting for the process to exit and then
     /// subsequently to wait for the data_stream to close.
@@ -682,7 +682,8 @@ pub const ThreadData = struct {
 
 pub const Config = struct {
     command: ?[]const u8 = null,
-    env: ?EnvMap = null,
+    env: EnvMap,
+    env_override: configpkg.RepeatableStringMap = .{},
     shell_integration: configpkg.Config.ShellIntegration = .detect,
     shell_integration_features: configpkg.Config.ShellIntegrationFeatures = .{},
     working_directory: ?[]const u8 = null,
@@ -704,7 +705,7 @@ const Subprocess = struct {
 
     arena: std.heap.ArenaAllocator,
     cwd: ?[]const u8,
-    env: EnvMap,
+    env: ?EnvMap,
     args: [][]const u8,
     grid_size: renderer.GridSize,
     screen_size: renderer.ScreenSize,
@@ -724,8 +725,7 @@ const Subprocess = struct {
 
         // Get our env. If a default env isn't provided by the caller
         // then we get it ourselves.
-        var env = cfg.env orelse try internal_os.getEnvMap(alloc);
-        errdefer env.deinit();
+        var env = cfg.env;
 
         // If we have a resources dir then set our env var
         if (cfg.resources_dir) |dir| {
@@ -888,6 +888,15 @@ const Subprocess = struct {
             );
         } else if (cfg.shell_integration != .none) {
             log.warn("shell could not be detected, no automatic shell integration will be injected", .{});
+        }
+
+        // Add the environment variables that override any others.
+        {
+            var it = cfg.env_override.iterator();
+            while (it.next()) |entry| try env.put(
+                entry.key_ptr.*,
+                entry.value_ptr.*,
+            );
         }
 
         // Build our args list
@@ -1054,6 +1063,7 @@ const Subprocess = struct {
     pub fn deinit(self: *Subprocess) void {
         self.stop();
         if (self.pty) |*pty| pty.deinit();
+        if (self.env) |*env| env.deinit();
         self.arena.deinit();
         self.* = undefined;
     }
@@ -1136,7 +1146,7 @@ const Subprocess = struct {
         var cmd: Command = .{
             .path = self.args[0],
             .args = self.args,
-            .env = &self.env,
+            .env = if (self.env) |*env| env else null,
             .cwd = cwd,
             .stdin = if (builtin.os.tag == .windows) null else .{ .handle = pty.slave },
             .stdout = if (builtin.os.tag == .windows) null else .{ .handle = pty.slave },
@@ -1168,6 +1178,12 @@ const Subprocess = struct {
             // side. This prevents the slave fd from being leaked to
             // future children.
             _ = posix.close(pty.slave);
+        }
+
+        // Successful start we can clear out some memory.
+        if (self.env) |*env| {
+            env.deinit();
+            self.env = null;
         }
 
         self.command = cmd;
