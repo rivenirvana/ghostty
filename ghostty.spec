@@ -13,6 +13,7 @@
     -Doptimize=ReleaseFast
     -fno-sys=glslang
     -fsys=simdutf
+    -fsys=gtk4-layer-shell
     -Dflatpak=false
     -Dfont-backend=fontconfig_freetype
     -Drenderer=opengl
@@ -66,6 +67,7 @@ BuildRequires:  pkgconfig(libxml-2.0)
 # app runtime
 BuildRequires:  pkgconfig(gtk4)
 BuildRequires:  pkgconfig(libadwaita-1)
+BuildRequires:  gtk4-layer-shell-devel
 BuildRequires:  libX11-devel
 BuildRequires:  gobject-introspection-devel
 BuildRequires:  blueprint-compiler
