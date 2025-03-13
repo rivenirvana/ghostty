@@ -60,8 +60,10 @@
         .cimgui = .{ .path = "./pkg/cimgui" },
         .fontconfig = .{ .path = "./pkg/fontconfig" },
         .freetype = .{ .path = "./pkg/freetype" },
+        .gtk4_layer_shell = .{ .path = "./pkg/gtk4-layer-shell" },
         .harfbuzz = .{ .path = "./pkg/harfbuzz" },
         .highway = .{ .path = "./pkg/highway" },
+        .libintl = .{ .path = "./pkg/libintl" },
         .libpng = .{ .path = "./pkg/libpng" },
         .macos = .{ .path = "./pkg/macos" },
         .oniguruma = .{ .path = "./pkg/oniguruma" },
@@ -93,8 +95,8 @@
         // Other
         .apple_sdk = .{ .path = "./pkg/apple-sdk" },
         .iterm2_themes = .{
-            .url = "https://github.com/mbadolato/iTerm2-Color-Schemes/archive/efb1bb1843500a751eb30afa58fe48a6bec8952c.tar.gz",
-            .hash = "1220a1dbe41bc69aacf75026a7158812198ea265fb9cac64dcb91cd31f3b1b8c1f92",
+            .url = "https://github.com/mbadolato/iTerm2-Color-Schemes/archive/e21d5ffd19605741d0e3e19d7c5a8c6c25648673.tar.gz",
+            .hash = "122071ad56fd984afb4f94d441b6ea3e21f1741a0e026b02860d9a46110fac2cd109",
         },
     },
 }

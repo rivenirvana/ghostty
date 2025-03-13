@@ -44,6 +44,13 @@ const log = std.log.scoped(.surface);
 // The renderer implementation to use.
 const Renderer = renderer.Renderer;
 
+/// Minimum window size in cells. This is used to prevent the window from
+/// being resized to a size that is too small to be useful. These defaults
+/// are chosen to match the default size of Mac's Terminal.app, but is
+/// otherwise somewhat arbitrary.
+const min_window_width_cells: u32 = 10;
+const min_window_height_cells: u32 = 4;
+
 /// Allocator
 alloc: Allocator,
 
@@ -252,6 +259,8 @@ const DerivedConfig = struct {
     window_padding_left: u32,
     window_padding_right: u32,
     window_padding_balance: bool,
+    window_height: u32,
+    window_width: u32,
     title: ?[:0]const u8,
     title_report: bool,
     links: []Link,
@@ -313,6 +322,8 @@ const DerivedConfig = struct {
             .window_padding_left = config.@"window-padding-x".top_left,
             .window_padding_right = config.@"window-padding-x".bottom_right,
             .window_padding_balance = config.@"window-padding-balance",
+            .window_height = config.@"window-height",
+            .window_width = config.@"window-width",
             .title = config.title,
             .title_report = config.@"title-report",
             .links = links,
@@ -418,9 +429,6 @@ pub fn init(
         &derived_config.font,
         font_size,
     );
-
-    // Pre-calculate our initial cell size ourselves.
-    const cell_size = font_grid.cellSize();
 
     // Build our size struct which has all the sizes we need.
     const size: renderer.Size = size: {
@@ -577,12 +585,6 @@ pub fn init(
         .{ .width = size.cell.width, .height = size.cell.height },
     );
 
-    // Set a minimum size that is cols=10 h=4. This matches Mac's Terminal.app
-    // but is otherwise somewhat arbitrary.
-
-    const min_window_width_cells: u32 = 10;
-    const min_window_height_cells: u32 = 4;
-
     _ = try rt_app.performAction(
         .{ .surface = self },
         .size_limit,
@@ -629,34 +631,11 @@ pub fn init(
     // Note: it is important to do this after the renderer is setup above.
     // This allows the apprt to fully initialize the surface before we
     // start messing with the window.
-    if (config.@"window-height" > 0 and config.@"window-width" > 0) init: {
-        const scale = rt_surface.getContentScale() catch break :init;
-        const height = @max(config.@"window-height", min_window_height_cells) * cell_size.height;
-        const width = @max(config.@"window-width", min_window_width_cells) * cell_size.width;
-        const width_f32: f32 = @floatFromInt(width);
-        const height_f32: f32 = @floatFromInt(height);
-
-        // The final values are affected by content scale and we need to
-        // account for the padding so we get the exact correct grid size.
-        const final_width: u32 =
-            @as(u32, @intFromFloat(@ceil(width_f32 / scale.x))) +
-            size.padding.left +
-            size.padding.right;
-        const final_height: u32 =
-            @as(u32, @intFromFloat(@ceil(height_f32 / scale.y))) +
-            size.padding.top +
-            size.padding.bottom;
-
-        _ = rt_app.performAction(
-            .{ .surface = self },
-            .initial_size,
-            .{ .width = final_width, .height = final_height },
-        ) catch |err| {
-            // We don't treat this as a fatal error because not setting
-            // an initial size shouldn't stop our terminal from working.
-            log.warn("unable to set initial window size: {s}", .{err});
-        };
-    }
+    self.recomputeInitialSize() catch |err| {
+        // We don't treat this as a fatal error because not setting
+        // an initial size shouldn't stop our terminal from working.
+        log.warn("unable to set initial window size: {}", .{err});
+    };
 
     if (config.title) |title| {
         _ = try rt_app.performAction(
@@ -1220,6 +1199,53 @@ pub fn updateConfig(
     );
 }
 
+const InitialSizeError = error{
+    ContentScaleUnavailable,
+    AppActionFailed,
+};
+
+/// Recalculate the initial size of the window based on the
+/// configuration and invoke the apprt `initial_size` action if
+/// necessary.
+fn recomputeInitialSize(
+    self: *Surface,
+) InitialSizeError!void {
+    // Both width and height must be set for this to work, as
+    // documented on the config options.
+    if (self.config.window_height <= 0 or
+        self.config.window_width <= 0) return;
+
+    const scale = self.rt_surface.getContentScale() catch
+        return error.ContentScaleUnavailable;
+    const height = @max(
+        self.config.window_height,
+        min_window_height_cells,
+    ) * self.size.cell.height;
+    const width = @max(
+        self.config.window_width,
+        min_window_width_cells,
+    ) * self.size.cell.width;
+    const width_f32: f32 = @floatFromInt(width);
+    const height_f32: f32 = @floatFromInt(height);
+
+    // The final values are affected by content scale and we need to
+    // account for the padding so we get the exact correct grid size.
+    const final_width: u32 =
+        @as(u32, @intFromFloat(@ceil(width_f32 / scale.x))) +
+        self.size.padding.left +
+        self.size.padding.right;
+    const final_height: u32 =
+        @as(u32, @intFromFloat(@ceil(height_f32 / scale.y))) +
+        self.size.padding.top +
+        self.size.padding.bottom;
+
+    _ = self.rt_app.performAction(
+        .{ .surface = self },
+        .initial_size,
+        .{ .width = final_width, .height = final_height },
+    ) catch return error.AppActionFailed;
+}
+
 /// Returns true if the terminal has a selection.
 pub fn hasSelection(self: *const Surface) bool {
     self.renderer_state.mutex.lock();
@@ -1478,6 +1504,13 @@ fn setCellSize(self: *Surface, size: renderer.CellSize) !void {
 
     // Notify the terminal
     self.io.queueMessage(.{ .resize = self.size }, .unlocked);
+
+    // Update our terminal default size if necessary.
+    self.recomputeInitialSize() catch |err| {
+        // We don't treat this as a fatal error because not setting
+        // an initial size shouldn't stop our terminal from working.
+        log.warn("unable to recompute initial window size: {}", .{err});
+    };
 
     // Notify the window
     _ = try self.rt_app.performAction(
@@ -2292,6 +2325,13 @@ const ScrollAmount = struct {
     pub fn magnitude(self: ScrollAmount) usize {
         return @abs(self.delta);
     }
+
+    pub fn multiplied(self: ScrollAmount, multiplier: f64) ScrollAmount {
+        const delta_f64: f64 = @floatFromInt(self.delta);
+        const delta_adjusted: f64 = delta_f64 * multiplier;
+        const delta_isize: isize = @intFromFloat(@round(delta_adjusted));
+        return .{ .delta = delta_isize };
+    }
 };
 
 /// Mouse scroll event. Negative is down, left. Positive is up, right.
@@ -2315,22 +2355,11 @@ pub fn scrollCallback(
     if (self.mouse.hidden) self.showMouse();
 
     const y: ScrollAmount = if (yoff == 0) .{} else y: {
-        // Non-precision scrolling is easy to calculate. We don't use
-        // the given offset at all and instead just treat a positive
-        // as a scroll up and a negative as a scroll down and scroll in
-        // steps.
+        // Non-precision scrolls don't accumulate. We cast that raw yoff to an isize and interpret
+        // it as the number of lines to scroll.
         if (!scroll_mods.precision) {
-            // Calculate our magnitude of scroll. This is constant (not
-            // dependent on yoff).
-            const grid_size = self.size.grid();
-            const grid_rows_f64: f64 = @floatFromInt(grid_size.rows);
-            const y_delta_f64: f64 = @round((grid_rows_f64 * self.config.mouse_scroll_multiplier) / 15.0);
-            const y_delta_usize: usize = @max(1, @as(usize, @intFromFloat(y_delta_f64)));
-
-            // Calculate our direction of scroll based on the sign of yoff.
-            const y_sign: isize = if (yoff >= 0) 1 else -1;
-            const y_delta_isize: isize = y_sign * @as(isize, @intCast(y_delta_usize));
-
+            // Calculate our magnitude of scroll. This is a direct multiple of yoff
+            const y_delta_isize: isize = @intFromFloat(@round(yoff));
             break :y .{ .delta = y_delta_isize };
         }
 
@@ -2339,7 +2368,7 @@ pub fn scrollCallback(
         // tiny amount so that we can scroll by a full row when we have enough.
 
         // Adjust our offset by the multiplier
-        const yoff_adjusted: f64 = yoff * self.config.mouse_scroll_multiplier;
+        const yoff_adjusted: f64 = yoff;
 
         // Add our previously saved pending amount to the offset to get the
         // new offset value. The signs of the pending and yoff should match
@@ -2371,15 +2400,11 @@ pub fn scrollCallback(
     // For detailed comments see the y calculation above.
     const x: ScrollAmount = if (xoff == 0) .{} else x: {
         if (!scroll_mods.precision) {
-            const x_delta_f64: f64 = @round(1 * self.config.mouse_scroll_multiplier);
-            const x_delta_usize: usize = @max(1, @as(usize, @intFromFloat(x_delta_f64)));
-            const x_sign: isize = if (xoff >= 0) 1 else -1;
-            const x_delta_isize: isize = x_sign * @as(isize, @intCast(x_delta_usize));
+            const x_delta_isize: isize = @intFromFloat(@round(xoff));
             break :x .{ .delta = x_delta_isize };
         }
 
-        const xoff_adjusted: f64 = xoff * self.config.mouse_scroll_multiplier;
-        const poff: f64 = self.mouse.pending_scroll_x + xoff_adjusted;
+        const poff: f64 = self.mouse.pending_scroll_x + xoff;
         const cell_size: f64 = @floatFromInt(self.size.cell.width);
         if (@abs(poff) < cell_size) {
             self.mouse.pending_scroll_x = poff;
@@ -2407,6 +2432,12 @@ pub fn scrollCallback(
             try self.setSelection(null);
         }
 
+        // We never use a multiplier for precision scrolls.
+        const multiplier: f64 = if (scroll_mods.precision)
+            1.0
+        else
+            self.config.mouse_scroll_multiplier;
+
         // If we're in alternate screen with alternate scroll enabled, then
         // we convert to cursor keys. This only happens if we're:
         // (1) alt screen (2) no explicit mouse reporting and (3) alt
@@ -2433,7 +2464,9 @@ pub fn scrollCallback(
                         .down_left => "\x1b[B",
                     };
                 };
-                for (0..y.magnitude()) |_| {
+                // We multiple by the scroll multiplier when reporting arrows
+                const multiplied = y.multiplied(multiplier);
+                for (0..multiplied.magnitude()) |_| {
                     self.io.queueMessage(.{ .write_stable = seq }, .locked);
                 }
             }
@@ -2469,10 +2502,12 @@ pub fn scrollCallback(
         }
 
         if (y.delta != 0) {
+            // We multiply by the multiplier when scrolling the viewport
+            const multiplied = y.multiplied(multiplier);
             // Modify our viewport, this requires a lock since it affects
             // rendering. We have to switch signs here because our delta
             // is negative down but our viewport is positive down.
-            try self.io.terminal.scrollViewport(.{ .delta = y.delta * -1 });
+            try self.io.terminal.scrollViewport(.{ .delta = multiplied.delta * -1 });
         }
     }
 
@@ -4195,6 +4230,12 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
             {},
         ),
 
+        .reset_window_size => return try self.rt_app.performAction(
+            .{ .surface = self },
+            .reset_window_size,
+            {},
+        ),
+
         .toggle_maximize => return try self.rt_app.performAction(
             .{ .surface = self },
             .toggle_maximize,
@@ -4251,7 +4292,11 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
 
         .close_surface => self.close(),
 
-        .close_window => self.app.closeSurface(self),
+        .close_window => return try self.rt_app.performAction(
+            .{ .surface = self },
+            .close_window,
+            {},
+        ),
 
         .crash => |location| switch (location) {
             .main => @panic("crash binding action, crashing intentionally"),

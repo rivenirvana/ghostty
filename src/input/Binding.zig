@@ -380,6 +380,11 @@ pub const Action = union(enum) {
     /// Equalize all splits in the current window
     equalize_splits: void,
 
+    /// Reset the window to the default size. The "default size" is the
+    /// size that a new window would be created with. This has no effect
+    /// if the window is fullscreen.
+    reset_window_size: void,
+
     /// Control the terminal inspector visibility.
     ///
     /// Arguments:
@@ -466,7 +471,15 @@ pub const Action = union(enum) {
     /// See the various configurations for the quick terminal in the
     /// configuration file to customize its behavior.
     ///
-    /// This currently only works on macOS.
+    /// Supported on macOS and some desktop environments on Linux, namely
+    /// those that support the `wlr-layer-shell` Wayland protocol
+    /// (i.e. most desktop environments and window managers except GNOME).
+    ///
+    /// Slide-in animations on Linux are only supported on KDE when the
+    /// "Sliding Popups" KWin plugin is enabled. If you do not have this
+    /// plugin enabled, open System Settings > Apps & Windows > Window
+    /// Management > Desktop Effects, and enable the plugin in the plugin list.
+    /// Ghostty would then need to be restarted for this to take effect.
     toggle_quick_terminal: void,
 
     /// Show/hide all windows. If all windows become shown, we also ensure
@@ -772,6 +785,7 @@ pub const Action = union(enum) {
             .toggle_fullscreen,
             .toggle_window_decorations,
             .toggle_secure_input,
+            .reset_window_size,
             .crash,
             => .surface,
 

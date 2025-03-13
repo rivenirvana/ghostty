@@ -13,10 +13,12 @@
   libGL,
   glib,
   gtk4,
+  gtk4-layer-shell,
   gobject-introspection,
   libadwaita,
   blueprint-compiler,
   libxml2,
+  gettext,
   wrapGAppsHook4,
   gsettings-desktop-schemas,
   git,
@@ -63,6 +65,7 @@ in
           ../dist/linux
           ../images
           ../include
+          ../po
           ../pkg
           ../src
           ../vendor
@@ -86,6 +89,7 @@ in
         wrapGAppsHook4
         blueprint-compiler
         libxml2 # for xmllint
+        gettext
       ]
       ++ lib.optionals enableWayland [
         wayland-scanner
@@ -118,6 +122,7 @@ in
         libXrandr
       ]
       ++ lib.optionals enableWayland [
+        gtk4-layer-shell
         wayland
       ];
 

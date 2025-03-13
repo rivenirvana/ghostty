@@ -29,6 +29,11 @@ pub const App = struct {
     ) ?input.Mods {
         return null;
     }
+
+    pub fn supportsQuickTerminal(_: App) bool {
+        return false;
+    }
+    pub fn initQuickTerminal(_: *App, _: *ApprtWindow) !void {}
 };
 
 pub const Window = struct {

@@ -104,10 +104,10 @@
     "url": "https://deps.files.ghostty.org/plasma_wayland_protocols-12207e0851c12acdeee0991e893e0132fc87bb763969a585dc16ecca33e88334c566.tar.gz",
     "hash": "sha256-XFi6IUrNjmvKNCbcCLAixGqN2Zeymhs+KLrfccIN9EE="
   },
-  "1220a1dbe41bc69aacf75026a7158812198ea265fb9cac64dcb91cd31f3b1b8c1f92": {
+  "122071ad56fd984afb4f94d441b6ea3e21f1741a0e026b02860d9a46110fac2cd109": {
     "name": "iterm2_themes",
-    "url": "https://github.com/mbadolato/iTerm2-Color-Schemes/archive/efb1bb1843500a751eb30afa58fe48a6bec8952c.tar.gz",
-    "hash": "sha256-ZdVc1mmLwF45PZiqL/j/l7MO2O6hZ11lqIToGFdHiEU="
+    "url": "https://github.com/mbadolato/iTerm2-Color-Schemes/archive/e21d5ffd19605741d0e3e19d7c5a8c6c25648673.tar.gz",
+    "hash": "sha256-pyoGlKOWdZVbjGoxPP+CZ6zwil8O12gMOlzX0BJEfAc="
   },
   "1220bc6b9daceaf7c8c60f3c3998058045ba0c5c5f48ae255ff97776d9cd8bfc6402": {
     "name": "imgui",
@@ -139,6 +139,11 @@
     "url": "https://github.com/GNOME/libxml2/archive/refs/tags/v2.11.5.tar.gz",
     "hash": "sha256-bCgFni4+60K1tLFkieORamNGwQladP7jvGXNxdiaYhU="
   },
+  "12203eff4829ad8afdd828eb323d48e5ba8dbb44d224e9e314d4ab1533c2bec20f4b": {
+    "name": "gtk4_layer_shell",
+    "url": "https://github.com/wmww/gtk4-layer-shell/archive/refs/tags/v1.1.0.tar.gz",
+    "hash": "sha256-mChCgSYKXu9bT2OlXxbEv2p4ihAgptsDfssPcfozaYg="
+  },
   "1220b8588f106c996af10249bfa092c6fb2f35fbacb1505ef477a0b04a7dd1063122": {
     "name": "harfbuzz",
     "url": "https://deps.files.ghostty.org/harfbuzz-1220b8588f106c996af10249bfa092c6fb2f35fbacb1505ef477a0b04a7dd1063122.tar.gz",
@@ -148,6 +153,11 @@
     "name": "highway",
     "url": "https://deps.files.ghostty.org/highway-12205c83b8311a24b1d5ae6d21640df04f4b0726e314337c043cde1432758cbe165b.tar.gz",
     "hash": "sha256-NUqLRTm1iOcLmOxwhEJz4/J0EwLEw3e8xOgbPRhm98k="
+  },
+  "1220f870c853529233ea64a108acaaa81f8d06d7ff4b66c76930be7d78d508aff7a2": {
+    "name": "gettext",
+    "url": "https://deps.files.ghostty.org/gettext-0.24.tar.gz",
+    "hash": "sha256-yRhQPVk9cNr0hE0XWhPYFq+stmfAb7oeydzVACwVGLc="
   },
   "1220c15e72eadd0d9085a8af134904d9a0f5dfcbed5f606ad60edc60ebeccd9706bb": {
     "name": "oniguruma",

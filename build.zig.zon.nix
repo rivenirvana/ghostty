@@ -5,7 +5,7 @@
   fetchurl,
   fetchgit,
   runCommandLocal,
-  zig,
+  zig_0_13,
   name ? "zig-packages",
 }:
 with builtins;
@@ -16,7 +16,7 @@ with lib; let
   }:
     runCommandLocal name
     {
-      nativeBuildInputs = [zig];
+      nativeBuildInputs = [zig_0_13];
     }
     ''
       hash="$(zig fetch --global-cache-dir "$TMPDIR" ${artifact})"
@@ -252,11 +252,11 @@ in
       };
     }
     {
-      name = "1220a1dbe41bc69aacf75026a7158812198ea265fb9cac64dcb91cd31f3b1b8c1f92";
+      name = "122071ad56fd984afb4f94d441b6ea3e21f1741a0e026b02860d9a46110fac2cd109";
       path = fetchZigArtifact {
         name = "iterm2_themes";
-        url = "https://github.com/mbadolato/iTerm2-Color-Schemes/archive/efb1bb1843500a751eb30afa58fe48a6bec8952c.tar.gz";
-        hash = "sha256-ZdVc1mmLwF45PZiqL/j/l7MO2O6hZ11lqIToGFdHiEU=";
+        url = "https://github.com/mbadolato/iTerm2-Color-Schemes/archive/e21d5ffd19605741d0e3e19d7c5a8c6c25648673.tar.gz";
+        hash = "sha256-pyoGlKOWdZVbjGoxPP+CZ6zwil8O12gMOlzX0BJEfAc=";
       };
     }
     {
@@ -308,6 +308,14 @@ in
       };
     }
     {
+      name = "12203eff4829ad8afdd828eb323d48e5ba8dbb44d224e9e314d4ab1533c2bec20f4b";
+      path = fetchZigArtifact {
+        name = "gtk4_layer_shell";
+        url = "https://github.com/wmww/gtk4-layer-shell/archive/refs/tags/v1.1.0.tar.gz";
+        hash = "sha256-mChCgSYKXu9bT2OlXxbEv2p4ihAgptsDfssPcfozaYg=";
+      };
+    }
+    {
       name = "1220b8588f106c996af10249bfa092c6fb2f35fbacb1505ef477a0b04a7dd1063122";
       path = fetchZigArtifact {
         name = "harfbuzz";
@@ -321,6 +329,14 @@ in
         name = "highway";
         url = "https://deps.files.ghostty.org/highway-12205c83b8311a24b1d5ae6d21640df04f4b0726e314337c043cde1432758cbe165b.tar.gz";
         hash = "sha256-NUqLRTm1iOcLmOxwhEJz4/J0EwLEw3e8xOgbPRhm98k=";
+      };
+    }
+    {
+      name = "1220f870c853529233ea64a108acaaa81f8d06d7ff4b66c76930be7d78d508aff7a2";
+      path = fetchZigArtifact {
+        name = "gettext";
+        url = "https://deps.files.ghostty.org/gettext-0.24.tar.gz";
+        hash = "sha256-yRhQPVk9cNr0hE0XWhPYFq+stmfAb7oeydzVACwVGLc=";
       };
     }
     {

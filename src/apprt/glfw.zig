@@ -219,6 +219,7 @@ pub const App = struct {
             .toggle_split_zoom,
             .present_terminal,
             .close_all_windows,
+            .close_window,
             .close_tab,
             .toggle_tab_overview,
             .toggle_window_decorations,
@@ -240,6 +241,7 @@ pub const App = struct {
             .config_change,
             .toggle_maximize,
             .prompt_title,
+            .reset_window_size,
             => {
                 log.info("unimplemented action={}", .{action});
                 return false;

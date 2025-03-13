@@ -7,11 +7,18 @@ const Window = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");
-const build_config = @import("../../build_config.zig");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
+
+const gio = @import("gio");
+const glib = @import("glib");
+const gobject = @import("gobject");
+const gtk = @import("gtk");
+
+const build_config = @import("../../build_config.zig");
 const configpkg = @import("../../config.zig");
 const font = @import("../../font/main.zig");
+const i18n = @import("../../os/main.zig").i18n;
 const input = @import("../../input.zig");
 const CoreSurface = @import("../../Surface.zig");
 
@@ -25,6 +32,7 @@ const adwaita = @import("adwaita.zig");
 const gtk_key = @import("key.zig");
 const TabView = @import("TabView.zig");
 const HeaderBar = @import("headerbar.zig");
+const CloseDialog = @import("CloseDialog.zig");
 const version = @import("version.zig");
 const winproto = @import("winproto.zig");
 
@@ -73,6 +81,10 @@ pub const DerivedConfig = struct {
     gtk_wide_tabs: bool,
     gtk_toolbar_style: configpkg.Config.GtkToolbarStyle,
 
+    quick_terminal_position: configpkg.Config.QuickTerminalPosition,
+    quick_terminal_size: configpkg.Config.QuickTerminalSize,
+    quick_terminal_autohide: bool,
+
     maximize: bool,
     fullscreen: bool,
     window_decoration: configpkg.Config.WindowDecoration,
@@ -87,6 +99,10 @@ pub const DerivedConfig = struct {
             .gtk_tabs_location = config.@"gtk-tabs-location",
             .gtk_wide_tabs = config.@"gtk-wide-tabs",
             .gtk_toolbar_style = config.@"gtk-toolbar-style",
+
+            .quick_terminal_position = config.@"quick-terminal-position",
+            .quick_terminal_size = config.@"quick-terminal-size",
+            .quick_terminal_autohide = config.@"quick-terminal-autohide",
 
             .maximize = config.maximize,
             .fullscreen = config.fullscreen,
@@ -182,7 +198,7 @@ pub fn init(self: *Window, app: *App) !void {
 
     {
         const btn = c.gtk_menu_button_new();
-        c.gtk_widget_set_tooltip_text(btn, "Main Menu");
+        c.gtk_widget_set_tooltip_text(btn, i18n._("Main Menu"));
         c.gtk_menu_button_set_icon_name(@ptrCast(btn), "open-menu-symbolic");
         c.gtk_menu_button_set_popover(@ptrCast(btn), @ptrCast(@alignCast(self.titlebar_menu.asWidget())));
         _ = c.g_signal_connect_data(
@@ -202,7 +218,7 @@ pub fn init(self: *Window, app: *App) !void {
         const btn = switch (self.config.gtk_tabs_location) {
             .top, .bottom => btn: {
                 const btn = c.gtk_toggle_button_new();
-                c.gtk_widget_set_tooltip_text(btn, "View Open Tabs");
+                c.gtk_widget_set_tooltip_text(btn, i18n._("View Open Tabs"));
                 c.gtk_button_set_icon_name(@ptrCast(btn), "view-grid-symbolic");
                 _ = c.g_object_bind_property(
                     btn,
@@ -229,13 +245,14 @@ pub fn init(self: *Window, app: *App) !void {
 
     {
         const btn = c.gtk_button_new_from_icon_name("tab-new-symbolic");
-        c.gtk_widget_set_tooltip_text(btn, "New Tab");
+        c.gtk_widget_set_tooltip_text(btn, i18n._("New Tab"));
         _ = c.g_signal_connect_data(btn, "clicked", c.G_CALLBACK(&gtkTabNewClick), self, null, c.G_CONNECT_DEFAULT);
         self.headerbar.packStart(btn);
     }
 
     _ = c.g_signal_connect_data(self.window, "notify::maximized", c.G_CALLBACK(&gtkWindowNotifyMaximized), self, null, c.G_CONNECT_DEFAULT);
     _ = c.g_signal_connect_data(self.window, "notify::fullscreened", c.G_CALLBACK(&gtkWindowNotifyFullscreened), self, null, c.G_CONNECT_DEFAULT);
+    _ = c.g_signal_connect_data(self.window, "notify::is-active", c.G_CALLBACK(&gtkWindowNotifyIsActive), self, null, c.G_CONNECT_DEFAULT);
 
     // If Adwaita is enabled and is older than 1.4.0 we don't have the tab overview and so we
     // need to stick the headerbar into the content box.
@@ -247,7 +264,7 @@ pub fn init(self: *Window, app: *App) !void {
     // This is a really common issue where people build from source in debug and performance is really bad.
     if (comptime std.debug.runtime_safety) {
         const warning_box = c.gtk_box_new(c.GTK_ORIENTATION_VERTICAL, 0);
-        const warning_text = "⚠️ You're running a debug build of Ghostty! Performance will be degraded.";
+        const warning_text = i18n._("⚠️ You're running a debug build of Ghostty! Performance will be degraded.");
         if (adwaita.versionAtLeast(1, 3, 0)) {
             const banner = c.adw_banner_new(warning_text);
             c.adw_banner_set_revealed(@ptrCast(banner), 1);
@@ -358,9 +375,21 @@ pub fn init(self: *Window, app: *App) !void {
 
     // If we are in fullscreen mode, new windows start fullscreen.
     if (self.config.fullscreen) c.gtk_window_fullscreen(self.window);
+}
 
-    // Show the window
-    c.gtk_widget_show(gtk_widget);
+pub fn present(self: *Window) void {
+    const window: *gtk.Window = @ptrCast(self.window);
+    window.present();
+}
+
+pub fn toggleVisibility(self: *Window) void {
+    const window: *gtk.Widget = @ptrCast(self.window);
+
+    window.setVisible(@intFromBool(window.isVisible() == 0));
+}
+
+pub fn isQuickTerminal(self: *Window) bool {
+    return self.app.quick_terminal == self;
 }
 
 pub fn updateConfig(
@@ -401,6 +430,9 @@ pub fn syncAppearance(self: *Window) !void {
     self.headerbar.setVisible(visible: {
         // Never display the header bar when CSDs are disabled.
         if (!csd_enabled) break :visible false;
+
+        // Never display the header bar as a quick terminal.
+        if (self.isQuickTerminal()) break :visible false;
 
         // Unconditionally disable the header bar when fullscreened.
         if (self.config.fullscreen) break :visible false;
@@ -451,12 +483,6 @@ pub fn syncAppearance(self: *Window) !void {
     self.winproto.syncAppearance() catch |err| {
         log.warn("failed to sync winproto appearance error={}", .{err});
     };
-
-    toggleCssClass(
-        @ptrCast(self.window),
-        "background",
-        self.config.background_opacity >= 1,
-    );
 }
 
 fn toggleCssClass(
@@ -475,36 +501,38 @@ fn toggleCssClass(
 /// menus and such. The menu is defined in App.zig but the action is defined
 /// here. The string name binds them.
 fn initActions(self: *Window) void {
+    // FIXME: when rest of file is converted to gobject
+    const window: *gtk.ApplicationWindow = @ptrCast(@alignCast(self.window));
+    const action_map = window.as(gio.ActionMap);
     const actions = .{
-        .{ "about", &gtkActionAbout },
-        .{ "close", &gtkActionClose },
-        .{ "new-window", &gtkActionNewWindow },
-        .{ "new-tab", &gtkActionNewTab },
-        .{ "close-tab", &gtkActionCloseTab },
-        .{ "split-right", &gtkActionSplitRight },
-        .{ "split-down", &gtkActionSplitDown },
-        .{ "split-left", &gtkActionSplitLeft },
-        .{ "split-up", &gtkActionSplitUp },
-        .{ "toggle-inspector", &gtkActionToggleInspector },
-        .{ "copy", &gtkActionCopy },
-        .{ "paste", &gtkActionPaste },
-        .{ "reset", &gtkActionReset },
-        .{ "clear", &gtkActionClear },
-        .{ "prompt-title", &gtkActionPromptTitle },
+        .{ "about", gtkActionAbout },
+        .{ "close", gtkActionClose },
+        .{ "new-window", gtkActionNewWindow },
+        .{ "new-tab", gtkActionNewTab },
+        .{ "close-tab", gtkActionCloseTab },
+        .{ "split-right", gtkActionSplitRight },
+        .{ "split-down", gtkActionSplitDown },
+        .{ "split-left", gtkActionSplitLeft },
+        .{ "split-up", gtkActionSplitUp },
+        .{ "toggle-inspector", gtkActionToggleInspector },
+        .{ "copy", gtkActionCopy },
+        .{ "paste", gtkActionPaste },
+        .{ "reset", gtkActionReset },
+        .{ "clear", gtkActionClear },
+        .{ "prompt-title", gtkActionPromptTitle },
     };
 
     inline for (actions) |entry| {
-        const action = c.g_simple_action_new(entry[0], null);
-        defer c.g_object_unref(action);
-        _ = c.g_signal_connect_data(
+        const action = gio.SimpleAction.new(entry[0], null);
+        defer action.unref();
+        _ = gio.SimpleAction.signals.activate.connect(
             action,
-            "activate",
-            c.G_CALLBACK(entry[1]),
+            *Window,
+            entry[1],
             self,
-            null,
-            c.G_CONNECT_DEFAULT,
+            .{},
         );
-        c.g_action_map_add_action(@ptrCast(self.window), @ptrCast(action));
+        action_map.addAction(action.as(gio.Action));
     }
 }
 
@@ -645,13 +673,17 @@ pub fn focusCurrentTab(self: *Window) void {
     const surface = tab.focus_child orelse return;
     const gl_area = @as(*c.GtkWidget, @ptrCast(surface.gl_area));
     _ = c.gtk_widget_grab_focus(gl_area);
+
+    if (surface.getTitle()) |title| {
+        self.setTitle(title);
+    }
 }
 
 pub fn onConfigReloaded(self: *Window) void {
-    self.sendToast("Reloaded the configuration");
+    self.sendToast(i18n._("Reloaded the configuration"));
 }
 
-pub fn sendToast(self: *Window, title: [:0]const u8) void {
+pub fn sendToast(self: *Window, title: [*:0]const u8) void {
     const toast = c.adw_toast_new(title);
     c.adw_toast_set_timeout(toast, 3);
     c.adw_toast_overlay_add_toast(@ptrCast(self.toast_overlay), toast);
@@ -701,6 +733,20 @@ fn gtkWindowNotifyFullscreened(
     self.syncAppearance() catch |err| {
         log.err("failed to sync appearance={}", .{err});
     };
+}
+
+fn gtkWindowNotifyIsActive(
+    _: *c.GObject,
+    _: *c.GParamSpec,
+    ud: ?*anyopaque,
+) callconv(.C) void {
+    const self = userdataSelf(ud orelse return);
+    if (!self.isQuickTerminal()) return;
+
+    // Hide when we're unfocused
+    if (self.config.quick_terminal_autohide and c.gtk_window_is_active(self.window) == 0) {
+        self.toggleVisibility();
+    }
 }
 
 // Note: we MUST NOT use the GtkButton parameter because gtkActionNewTab
@@ -772,11 +818,16 @@ fn adwTabOverviewFocusTimer(
     return 0;
 }
 
-fn gtkCloseRequest(v: *c.GtkWindow, ud: ?*anyopaque) callconv(.C) bool {
-    _ = v;
-    log.debug("window close request", .{});
-    const self = userdataSelf(ud.?);
+pub fn close(self: *Window) void {
+    const window: *gtk.Window = @ptrCast(self.window);
 
+    // Unset the quick terminal on the app level
+    if (self.isQuickTerminal()) self.app.quick_terminal = null;
+
+    window.destroy();
+}
+
+pub fn closeWithConfirmation(self: *Window) void {
     // If none of our surfaces need confirmation, we can just exit.
     for (self.app.core_app.surfaces.items) |surface| {
         if (surface.container.window()) |window| {
@@ -784,52 +835,22 @@ fn gtkCloseRequest(v: *c.GtkWindow, ud: ?*anyopaque) callconv(.C) bool {
                 surface.core_surface.needsConfirmQuit()) break;
         }
     } else {
-        c.gtk_window_destroy(self.window);
-        return true;
+        self.close();
+        return;
     }
 
-    // Setup our basic message
-    const alert = c.gtk_message_dialog_new(
-        self.window,
-        c.GTK_DIALOG_MODAL,
-        c.GTK_MESSAGE_QUESTION,
-        c.GTK_BUTTONS_YES_NO,
-        "Close this window?",
-    );
-    c.gtk_message_dialog_format_secondary_text(
-        @ptrCast(alert),
-        "All terminal sessions in this window will be terminated.",
-    );
-
-    // We want the "yes" to appear destructive.
-    const yes_widget = c.gtk_dialog_get_widget_for_response(
-        @ptrCast(alert),
-        c.GTK_RESPONSE_YES,
-    );
-    c.gtk_widget_add_css_class(yes_widget, "destructive-action");
-
-    // We want the "no" to be the default action
-    c.gtk_dialog_set_default_response(
-        @ptrCast(alert),
-        c.GTK_RESPONSE_NO,
-    );
-
-    _ = c.g_signal_connect_data(alert, "response", c.G_CALLBACK(&gtkCloseConfirmation), self, null, c.G_CONNECT_DEFAULT);
-
-    c.gtk_widget_show(alert);
-    return true;
+    CloseDialog.show(.{ .window = self }) catch |err| {
+        log.err("failed to open close dialog={}", .{err});
+    };
 }
 
-fn gtkCloseConfirmation(
-    alert: *c.GtkMessageDialog,
-    response: c.gint,
-    ud: ?*anyopaque,
-) callconv(.C) void {
-    c.gtk_window_destroy(@ptrCast(alert));
-    if (response == c.GTK_RESPONSE_YES) {
-        const self = userdataSelf(ud.?);
-        c.gtk_window_destroy(self.window);
-    }
+fn gtkCloseRequest(v: *c.GtkWindow, ud: ?*anyopaque) callconv(.C) bool {
+    _ = v;
+    log.debug("window close request", .{});
+    const self = userdataSelf(ud.?);
+
+    self.closeWithConfirmation();
+    return true;
 }
 
 /// "destroy" signal for the window
@@ -878,12 +899,10 @@ fn gtkKeyPressed(
 }
 
 fn gtkActionAbout(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
-
     const name = "Ghostty";
     const icon = "com.mitchellh.ghostty";
     const website = "https://ghostty.org";
@@ -894,7 +913,7 @@ fn gtkActionAbout(
             "application-name",
             name,
             "developer-name",
-            "Ghostty Developers",
+            i18n._("Ghostty Developers"),
             "application-icon",
             icon,
             "version",
@@ -913,7 +932,7 @@ fn gtkActionAbout(
             "logo-icon-name",
             icon,
             "title",
-            "About Ghostty",
+            i18n._("About Ghostty"),
             "version",
             build_config.version_string.ptr,
             "website",
@@ -924,20 +943,18 @@ fn gtkActionAbout(
 }
 
 fn gtkActionClose(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
-    c.gtk_window_destroy(self.window);
+    self.closeWithConfirmation();
 }
 
 fn gtkActionNewWindow(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .new_window = {} }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -946,20 +963,19 @@ fn gtkActionNewWindow(
 }
 
 fn gtkActionNewTab(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
     // We can use undefined because the button is not used.
-    gtkTabNewClick(undefined, ud);
+    gtkTabNewClick(undefined, self);
 }
 
 fn gtkActionCloseTab(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .close_tab = {} }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -968,11 +984,10 @@ fn gtkActionCloseTab(
 }
 
 fn gtkActionSplitRight(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .new_split = .right }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -981,11 +996,10 @@ fn gtkActionSplitRight(
 }
 
 fn gtkActionSplitDown(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .new_split = .down }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -994,11 +1008,10 @@ fn gtkActionSplitDown(
 }
 
 fn gtkActionSplitLeft(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .new_split = .left }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -1007,11 +1020,10 @@ fn gtkActionSplitLeft(
 }
 
 fn gtkActionSplitUp(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .new_split = .up }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -1020,11 +1032,10 @@ fn gtkActionSplitUp(
 }
 
 fn gtkActionToggleInspector(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .inspector = .toggle }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -1033,11 +1044,10 @@ fn gtkActionToggleInspector(
 }
 
 fn gtkActionCopy(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .copy_to_clipboard = {} }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -1046,11 +1056,10 @@ fn gtkActionCopy(
 }
 
 fn gtkActionPaste(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .paste_from_clipboard = {} }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -1059,11 +1068,10 @@ fn gtkActionPaste(
 }
 
 fn gtkActionReset(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .reset = {} }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -1072,11 +1080,10 @@ fn gtkActionReset(
 }
 
 fn gtkActionClear(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .clear_screen = {} }) catch |err| {
         log.warn("error performing binding action error={}", .{err});
@@ -1085,11 +1092,10 @@ fn gtkActionClear(
 }
 
 fn gtkActionPromptTitle(
-    _: *c.GSimpleAction,
-    _: *c.GVariant,
-    ud: ?*anyopaque,
+    _: *gio.SimpleAction,
+    _: ?*glib.Variant,
+    self: *Window,
 ) callconv(.C) void {
-    const self: *Window = @ptrCast(@alignCast(ud orelse return));
     const surface = self.actionSurface() orelse return;
     _ = surface.performBindingAction(.{ .prompt_surface_title = {} }) catch |err| {
         log.warn("error performing binding action error={}", .{err});

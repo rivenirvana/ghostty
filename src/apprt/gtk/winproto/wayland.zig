@@ -1,7 +1,13 @@
 //! Wayland protocol implementation for the Ghostty GTK apprt.
 const std = @import("std");
-const wayland = @import("wayland");
 const Allocator = std.mem.Allocator;
+
+const build_options = @import("build_options");
+const wayland = @import("wayland");
+const gtk = @import("gtk");
+const gtk4_layer_shell = @import("gtk4-layer-shell");
+const gdk = @import("gdk");
+
 const c = @import("../c.zig").c;
 const Config = @import("../../../config.zig").Config;
 const input = @import("../../../input.zig");
@@ -23,6 +29,8 @@ pub const App = struct {
         // FIXME: replace with `zxdg_decoration_v1` once GTK merges
         // https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/6398
         kde_decoration_manager: ?*org.KdeKwinServerDecorationManager = null,
+
+        kde_slide_manager: ?*org.KdeKwinSlideManager = null,
 
         default_deco_mode: ?org.KdeKwinServerDecorationManager.Mode = null,
     };
@@ -84,6 +92,22 @@ pub const App = struct {
         return null;
     }
 
+    pub fn supportsQuickTerminal(_: App) bool {
+        if (!gtk4_layer_shell.isSupported()) {
+            log.warn("your compositor does not support the wlr-layer-shell protocol; disabling quick terminal", .{});
+            return false;
+        }
+        return true;
+    }
+
+    pub fn initQuickTerminal(_: *App, apprt_window: *ApprtWindow) !void {
+        const window: *gtk.Window = @ptrCast(apprt_window.window);
+
+        gtk4_layer_shell.initForWindow(window);
+        gtk4_layer_shell.setLayer(window, .top);
+        gtk4_layer_shell.setKeyboardMode(window, .on_demand);
+    }
+
     fn registryListener(
         registry: *wl.Registry,
         event: wl.Registry.Event,
@@ -100,13 +124,26 @@ pub const App = struct {
                     global,
                 )) |blur_manager| {
                     context.kde_blur_manager = blur_manager;
-                } else if (registryBind(
+                    return;
+                }
+
+                if (registryBind(
                     org.KdeKwinServerDecorationManager,
                     registry,
                     global,
                 )) |deco_manager| {
                     context.kde_decoration_manager = deco_manager;
                     deco_manager.setListener(*Context, decoManagerListener, context);
+                    return;
+                }
+
+                if (registryBind(
+                    org.KdeKwinSlideManager,
+                    registry,
+                    global,
+                )) |slide_manager| {
+                    context.kde_slide_manager = slide_manager;
+                    return;
                 }
             },
 
@@ -156,7 +193,7 @@ pub const App = struct {
 
 /// Per-window (wl_surface) state for the Wayland protocol.
 pub const Window = struct {
-    config: *const ApprtWindow.DerivedConfig,
+    apprt_window: *ApprtWindow,
 
     /// The Wayland surface for this window.
     surface: *wl.Surface,
@@ -170,6 +207,10 @@ pub const Window = struct {
     /// Object that controls the decoration mode (client/server/auto)
     /// of the window.
     decoration: ?*org.KdeKwinServerDecoration,
+
+    /// Object that controls the slide-in/slide-out animations of the
+    /// quick terminal. Always null for windows other than the quick terminal.
+    slide: ?*org.KdeKwinSlide,
 
     pub fn init(
         alloc: Allocator,
@@ -209,12 +250,18 @@ pub const Window = struct {
             break :deco deco;
         };
 
+        if (apprt_window.isQuickTerminal()) {
+            const surface: *gdk.Surface = @ptrCast(gdk_surface);
+            _ = gdk.Surface.signals.enter_monitor.connect(surface, *ApprtWindow, enteredMonitor, apprt_window, .{});
+        }
+
         return .{
-            .config = &apprt_window.config,
+            .apprt_window = apprt_window,
             .surface = wl_surface,
             .app_context = app.context,
             .blur_token = null,
             .decoration = deco,
+            .slide = null,
         };
     }
 
@@ -222,6 +269,7 @@ pub const Window = struct {
         _ = alloc;
         if (self.blur_token) |blur| blur.release();
         if (self.decoration) |deco| deco.release();
+        if (self.slide) |slide| slide.release();
     }
 
     pub fn resizeEvent(_: *Window) !void {}
@@ -233,6 +281,12 @@ pub const Window = struct {
         self.syncDecoration() catch |err| {
             log.err("failed to sync blur={}", .{err});
         };
+
+        if (self.apprt_window.isQuickTerminal()) {
+            self.syncQuickTerminal() catch |err| {
+                log.warn("failed to sync quick terminal appearance={}", .{err});
+            };
+        }
     }
 
     pub fn clientSideDecorationEnabled(self: Window) bool {
@@ -255,7 +309,7 @@ pub const Window = struct {
     /// Update the blur state of the window.
     fn syncBlur(self: *Window) !void {
         const manager = self.app_context.kde_blur_manager orelse return;
-        const blur = self.config.background_blur;
+        const blur = self.apprt_window.config.background_blur;
 
         if (self.blur_token) |tok| {
             // Only release token when transitioning from blurred -> not blurred
@@ -283,11 +337,83 @@ pub const Window = struct {
     }
 
     fn getDecorationMode(self: Window) org.KdeKwinServerDecorationManager.Mode {
-        return switch (self.config.window_decoration) {
+        return switch (self.apprt_window.config.window_decoration) {
             .auto => self.app_context.default_deco_mode orelse .Client,
             .client => .Client,
             .server => .Server,
             .none => .None,
         };
+    }
+
+    fn syncQuickTerminal(self: *Window) !void {
+        const window: *gtk.Window = @ptrCast(self.apprt_window.window);
+        const position = self.apprt_window.config.quick_terminal_position;
+
+        const anchored_edge: ?gtk4_layer_shell.ShellEdge = switch (position) {
+            .left => .left,
+            .right => .right,
+            .top => .top,
+            .bottom => .bottom,
+            .center => null,
+        };
+
+        for (std.meta.tags(gtk4_layer_shell.ShellEdge)) |edge| {
+            if (anchored_edge) |anchored| {
+                if (edge == anchored) {
+                    gtk4_layer_shell.setMargin(window, edge, 0);
+                    gtk4_layer_shell.setAnchor(window, edge, true);
+                    continue;
+                }
+            }
+
+            // Arbitrary margin - could be made customizable?
+            gtk4_layer_shell.setMargin(window, edge, 20);
+            gtk4_layer_shell.setAnchor(window, edge, false);
+        }
+
+        if (self.apprt_window.isQuickTerminal()) {
+            if (self.slide) |slide| slide.release();
+
+            self.slide = if (anchored_edge) |anchored| slide: {
+                const mgr = self.app_context.kde_slide_manager orelse break :slide null;
+
+                const slide = mgr.create(self.surface) catch |err| {
+                    log.warn("could not create slide object={}", .{err});
+                    break :slide null;
+                };
+
+                const slide_location: org.KdeKwinSlide.Location = switch (anchored) {
+                    .top => .top,
+                    .bottom => .bottom,
+                    .left => .left,
+                    .right => .right,
+                };
+
+                slide.setLocation(@intCast(@intFromEnum(slide_location)));
+                slide.commit();
+                break :slide slide;
+            } else null;
+        }
+    }
+
+    /// Update the size of the quick terminal based on monitor dimensions.
+    fn enteredMonitor(
+        _: *gdk.Surface,
+        monitor: *gdk.Monitor,
+        apprt_window: *ApprtWindow,
+    ) callconv(.C) void {
+        const window: *gtk.Window = @ptrCast(apprt_window.window);
+        const size = apprt_window.config.quick_terminal_size;
+        const position = apprt_window.config.quick_terminal_position;
+
+        var monitor_size: gdk.Rectangle = undefined;
+        monitor.getGeometry(&monitor_size);
+
+        const dims = size.calculate(position, .{
+            .width = @intCast(monitor_size.f_width),
+            .height = @intCast(monitor_size.f_height),
+        });
+
+        window.setDefaultSize(@intCast(dims.width), @intCast(dims.height));
     }
 };

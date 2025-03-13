@@ -381,6 +381,17 @@ pub fn add(
         if (self.config.renderer == .opengl) {
             step.linkFramework("OpenGL");
         }
+
+        // Apple platforms do not include libc libintl so we bundle it.
+        // This is LGPL but since our source code is open source we are
+        // in compliance with the LGPL since end users can modify this
+        // build script to replace the bundled libintl with their own.
+        const libintl_dep = b.dependency("libintl", .{
+            .target = target,
+            .optimize = optimize,
+        });
+        step.linkLibrary(libintl_dep.artifact("intl"));
+        try static_libs.append(libintl_dep.artifact("intl").getEmittedBin());
     }
 
     // cimgui
@@ -460,12 +471,8 @@ pub fn add(
 
                 if (self.config.wayland) {
                     const scanner = Scanner.create(b.dependency("zig_wayland", .{}), .{
-                        // We shouldn't be using getPath but we need to for now
-                        // https://codeberg.org/ifreund/zig-wayland/issues/66
-                        .wayland_xml = b.dependency("wayland", .{})
-                            .path("protocol/wayland.xml"),
-                        .wayland_protocols = b.dependency("wayland_protocols", .{})
-                            .path(""),
+                        .wayland_xml = b.dependency("wayland", .{}).path("protocol/wayland.xml"),
+                        .wayland_protocols = b.dependency("wayland_protocols", .{}).path(""),
                     });
 
                     const wayland = b.createModule(.{ .root_source_file = scanner.result });
@@ -478,13 +485,34 @@ pub fn add(
                     // FIXME: replace with `zxdg_decoration_v1` once GTK merges https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/6398
                     scanner.addCustomProtocol(plasma_wayland_protocols.path("src/protocols/blur.xml"));
                     scanner.addCustomProtocol(plasma_wayland_protocols.path("src/protocols/server-decoration.xml"));
+                    scanner.addCustomProtocol(plasma_wayland_protocols.path("src/protocols/slide.xml"));
 
                     scanner.generate("wl_compositor", 1);
                     scanner.generate("org_kde_kwin_blur_manager", 1);
                     scanner.generate("org_kde_kwin_server_decoration_manager", 1);
+                    scanner.generate("org_kde_kwin_slide_manager", 1);
 
                     step.root_module.addImport("wayland", wayland);
                     step.root_module.addImport("gdk_wayland", gobject.module("gdkwayland4"));
+
+                    const gtk4_layer_shell = b.dependency("gtk4_layer_shell", .{
+                        .target = target,
+                        .optimize = optimize,
+                    });
+                    const layer_shell_module = gtk4_layer_shell.module("gtk4-layer-shell");
+                    layer_shell_module.addImport("gtk", gobject.module("gtk4"));
+                    step.root_module.addImport("gtk4-layer-shell", layer_shell_module);
+
+                    // IMPORTANT: gtk4-layer-shell must be linked BEFORE
+                    // wayland-client, as it relies on shimming libwayland's APIs.
+                    if (b.systemIntegrationOption("gtk4-layer-shell", .{})) {
+                        step.linkSystemLibrary2("gtk4-layer-shell-0", dynamic_link_opts);
+                    } else {
+                        // gtk4-layer-shell *must* be dynamically linked,
+                        // so we don't add it as a static library
+                        step.linkLibrary(gtk4_layer_shell.artifact("gtk4-layer-shell"));
+                    }
+
                     step.linkSystemLibrary2("wayland-client", dynamic_link_opts);
                 }
 
@@ -514,10 +542,23 @@ pub fn add(
                             blueprint_compiler.addArgs(&.{
                                 b.fmt("{d}", .{blueprint_file.major}),
                                 b.fmt("{d}", .{blueprint_file.minor}),
-                                b.fmt("{d}", .{blueprint_file.micro}),
                             });
-                            const ui_file = blueprint_compiler.addOutputFileArg(b.fmt("{s}.ui", .{blueprint_file.name}));
-                            blueprint_compiler.addFileArg(b.path(b.fmt("src/apprt/gtk/ui/{s}.blp", .{blueprint_file.name})));
+                            const ui_file = blueprint_compiler.addOutputFileArg(b.fmt(
+                                "{d}.{d}/{s}.ui",
+                                .{
+                                    blueprint_file.major,
+                                    blueprint_file.minor,
+                                    blueprint_file.name,
+                                },
+                            ));
+                            blueprint_compiler.addFileArg(b.path(b.fmt(
+                                "src/apprt/gtk/ui/{d}.{d}/{s}.blp",
+                                .{
+                                    blueprint_file.major,
+                                    blueprint_file.minor,
+                                    blueprint_file.name,
+                                },
+                            )));
                             generate.addFileArg(ui_file);
                         }
 

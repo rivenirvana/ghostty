@@ -4,16 +4,19 @@
 const Surface = @This();
 
 const std = @import("std");
+
 const adw = @import("adw");
 const gtk = @import("gtk");
 const gio = @import("gio");
 const gobject = @import("gobject");
+
 const Allocator = std.mem.Allocator;
 const build_config = @import("../../build_config.zig");
 const build_options = @import("build_options");
 const configpkg = @import("../../config.zig");
 const apprt = @import("../../apprt.zig");
 const font = @import("../../font/main.zig");
+const i18n = @import("../../os/main.zig").i18n;
 const input = @import("../../input.zig");
 const renderer = @import("../../renderer.zig");
 const terminal = @import("../../terminal/main.zig");
@@ -27,6 +30,8 @@ const Window = @import("Window.zig");
 const Menu = @import("menu.zig").Menu;
 const ClipboardConfirmationWindow = @import("ClipboardConfirmationWindow.zig");
 const ResizeOverlay = @import("ResizeOverlay.zig");
+const URLWidget = @import("URLWidget.zig");
+const CloseDialog = @import("CloseDialog.zig");
 const inspector = @import("inspector.zig");
 const gtk_key = @import("key.zig");
 const c = @import("c.zig").c;
@@ -218,99 +223,6 @@ pub const Container = union(enum) {
     }
 };
 
-/// Represents the URL hover widgets that show the hovered URL.
-/// To explain a bit how this all works since its split across a few places:
-/// We create a left/right pair of labels. The left label is shown by default,
-/// and the right label is hidden. When the mouse enters the left label, we
-/// show the right label. When the mouse leaves the left label, we hide the
-/// right label.
-///
-/// The hover and styling is done with a combination of GTK event controllers
-/// and CSS in style.css.
-pub const URLWidget = struct {
-    left: *c.GtkWidget,
-    right: *c.GtkWidget,
-
-    pub fn init(surface: *const Surface, str: [:0]const u8) URLWidget {
-        // Create the left
-        const left = c.gtk_label_new(str.ptr);
-        c.gtk_label_set_ellipsize(@ptrCast(left), c.PANGO_ELLIPSIZE_MIDDLE);
-        c.gtk_widget_add_css_class(@ptrCast(left), "view");
-        c.gtk_widget_add_css_class(@ptrCast(left), "url-overlay");
-        c.gtk_widget_add_css_class(@ptrCast(left), "left");
-        c.gtk_widget_set_halign(left, c.GTK_ALIGN_START);
-        c.gtk_widget_set_valign(left, c.GTK_ALIGN_END);
-
-        // Create the right
-        const right = c.gtk_label_new(str.ptr);
-        c.gtk_label_set_ellipsize(@ptrCast(right), c.PANGO_ELLIPSIZE_MIDDLE);
-        c.gtk_widget_add_css_class(@ptrCast(right), "hidden");
-        c.gtk_widget_add_css_class(@ptrCast(right), "view");
-        c.gtk_widget_add_css_class(@ptrCast(right), "url-overlay");
-        c.gtk_widget_add_css_class(@ptrCast(right), "right");
-        c.gtk_widget_set_halign(right, c.GTK_ALIGN_END);
-        c.gtk_widget_set_valign(right, c.GTK_ALIGN_END);
-
-        // Setup our mouse hover event for the left
-        const ec_motion = c.gtk_event_controller_motion_new();
-        errdefer c.g_object_unref(ec_motion);
-        c.gtk_widget_add_controller(@ptrCast(left), ec_motion);
-        _ = c.g_signal_connect_data(
-            ec_motion,
-            "enter",
-            c.G_CALLBACK(&gtkLeftEnter),
-            right,
-            null,
-            c.G_CONNECT_DEFAULT,
-        );
-        _ = c.g_signal_connect_data(
-            ec_motion,
-            "leave",
-            c.G_CALLBACK(&gtkLeftLeave),
-            right,
-            null,
-            c.G_CONNECT_DEFAULT,
-        );
-
-        // Show it
-        c.gtk_overlay_add_overlay(surface.overlay, left);
-        c.gtk_overlay_add_overlay(surface.overlay, right);
-
-        return .{
-            .left = left,
-            .right = right,
-        };
-    }
-
-    pub fn deinit(self: *URLWidget, overlay: *c.GtkOverlay) void {
-        c.gtk_overlay_remove_overlay(overlay, @ptrCast(self.left));
-        c.gtk_overlay_remove_overlay(overlay, @ptrCast(self.right));
-    }
-
-    pub fn setText(self: *const URLWidget, str: [:0]const u8) void {
-        c.gtk_label_set_text(@ptrCast(self.left), str.ptr);
-        c.gtk_label_set_text(@ptrCast(self.right), str.ptr);
-    }
-
-    fn gtkLeftEnter(
-        _: *c.GtkEventControllerMotion,
-        _: c.gdouble,
-        _: c.gdouble,
-        ud: ?*anyopaque,
-    ) callconv(.C) void {
-        const right: *c.GtkWidget = @ptrCast(@alignCast(ud orelse return));
-        c.gtk_widget_remove_css_class(@ptrCast(right), "hidden");
-    }
-
-    fn gtkLeftLeave(
-        _: *c.GtkEventControllerMotion,
-        ud: ?*anyopaque,
-    ) callconv(.C) void {
-        const right: *c.GtkWidget = @ptrCast(@alignCast(ud orelse return));
-        c.gtk_widget_add_css_class(@ptrCast(right), "hidden");
-    }
-};
-
 /// Whether the surface has been realized or not yet. When a surface is
 /// "realized" it means that the OpenGL context is ready and the core
 /// surface has been initialized.
@@ -393,6 +305,12 @@ cgroup_path: ?[]const u8 = null,
 
 /// Our context menu.
 context_menu: Menu(Surface, "context_menu", false),
+
+/// True when we have a precision scroll in progress
+precision_scroll: bool = false,
+
+/// Flag indicating whether the surface is in secure input mode.
+is_secure_input: bool = false,
 
 /// The state of the key event while we're doing IM composition.
 /// See gtkKeyPressed for detailed descriptions.
@@ -508,10 +426,7 @@ pub fn init(self: *Surface, app: *App, opts: Options) !void {
     c.gtk_widget_add_controller(@ptrCast(@alignCast(overlay)), ec_motion);
 
     // Scroll events
-    const ec_scroll = c.gtk_event_controller_scroll_new(
-        c.GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES |
-            c.GTK_EVENT_CONTROLLER_SCROLL_DISCRETE,
-    );
+    const ec_scroll = c.gtk_event_controller_scroll_new(c.GTK_EVENT_CONTROLLER_SCROLL_BOTH_AXES);
     errdefer c.g_object_unref(ec_scroll);
     c.gtk_widget_add_controller(@ptrCast(overlay), ec_scroll);
 
@@ -622,6 +537,8 @@ pub fn init(self: *Surface, app: *App, opts: Options) !void {
     _ = c.g_signal_connect_data(ec_motion, "motion", c.G_CALLBACK(&gtkMouseMotion), self, null, c.G_CONNECT_DEFAULT);
     _ = c.g_signal_connect_data(ec_motion, "leave", c.G_CALLBACK(&gtkMouseLeave), self, null, c.G_CONNECT_DEFAULT);
     _ = c.g_signal_connect_data(ec_scroll, "scroll", c.G_CALLBACK(&gtkMouseScroll), self, null, c.G_CONNECT_DEFAULT);
+    _ = c.g_signal_connect_data(ec_scroll, "scroll-begin", c.G_CALLBACK(&gtkMouseScrollPrecisionBegin), self, null, c.G_CONNECT_DEFAULT);
+    _ = c.g_signal_connect_data(ec_scroll, "scroll-end", c.G_CALLBACK(&gtkMouseScrollPrecisionEnd), self, null, c.G_CONNECT_DEFAULT);
     _ = c.g_signal_connect_data(im_context, "preedit-start", c.G_CALLBACK(&gtkInputPreeditStart), self, null, c.G_CONNECT_DEFAULT);
     _ = c.g_signal_connect_data(im_context, "preedit-changed", c.G_CALLBACK(&gtkInputPreeditChanged), self, null, c.G_CONNECT_DEFAULT);
     _ = c.g_signal_connect_data(im_context, "preedit-end", c.G_CALLBACK(&gtkInputPreeditEnd), self, null, c.G_CONNECT_DEFAULT);
@@ -747,54 +664,22 @@ pub fn redraw(self: *Surface) void {
 }
 
 /// Close this surface.
-pub fn close(self: *Surface, processActive: bool) void {
+pub fn close(self: *Surface, process_active: bool) void {
+    self.closeWithConfirmation(process_active, .{ .surface = self });
+}
+
+/// Close this surface.
+pub fn closeWithConfirmation(self: *Surface, process_active: bool, target: CloseDialog.Target) void {
     self.setSplitZoom(false);
 
-    // If we're not part of a window hierarchy, we never confirm
-    // so we can just directly remove ourselves and exit.
-    const window = self.container.window() orelse {
-        self.container.remove();
-        return;
-    };
-
-    // If we have no process active we can just exit immediately.
-    if (!processActive) {
+    if (!process_active) {
         self.container.remove();
         return;
     }
 
-    // Setup our basic message
-    const alert = c.gtk_message_dialog_new(
-        window.window,
-        c.GTK_DIALOG_MODAL,
-        c.GTK_MESSAGE_QUESTION,
-        c.GTK_BUTTONS_YES_NO,
-        "Close this terminal?",
-    );
-    c.gtk_message_dialog_format_secondary_text(
-        @ptrCast(alert),
-        "There is still a running process in the terminal. " ++
-            "Closing the terminal will kill this process. " ++
-            "Are you sure you want to close the terminal?\n\n" ++
-            "Click 'No' to cancel and return to your terminal.",
-    );
-
-    // We want the "yes" to appear destructive.
-    const yes_widget = c.gtk_dialog_get_widget_for_response(
-        @ptrCast(alert),
-        c.GTK_RESPONSE_YES,
-    );
-    c.gtk_widget_add_css_class(yes_widget, "destructive-action");
-
-    // We want the "no" to be the default action
-    c.gtk_dialog_set_default_response(
-        @ptrCast(alert),
-        c.GTK_RESPONSE_NO,
-    );
-
-    _ = c.g_signal_connect_data(alert, "response", c.G_CALLBACK(&gtkCloseConfirmation), self, null, c.G_CONNECT_DEFAULT);
-
-    c.gtk_widget_show(alert);
+    CloseDialog.show(target) catch |err| {
+        log.err("failed to open close dialog={}", .{err});
+    };
 }
 
 pub fn controlInspector(
@@ -896,6 +781,13 @@ pub fn getSize(self: *const Surface) !apprt.SurfaceSize {
 }
 
 pub fn setInitialWindowSize(self: *const Surface, width: u32, height: u32) !void {
+    // If we've already become realized once then we ignore this
+    // request. The apprt initial_size action should only modify
+    // the physical size of the window during initialization.
+    // Subsequent actions are only informative in case we want to
+    // implement a "return to default size" action later.
+    if (self.realized) return;
+
     // If we are within a split, do not set the size.
     if (self.container.split() != null) return;
 
@@ -1049,7 +941,7 @@ pub fn promptTitle(self: *Surface) !void {
     if (!adwaita.versionAtLeast(1, 5, 0)) return;
     const window = self.container.window() orelse return;
 
-    var builder = Builder.init("prompt-title-dialog", .blp);
+    var builder = Builder.init("prompt-title-dialog", 1, 5, .blp);
     defer builder.deinit();
 
     const entry = builder.getObject(gtk.Entry, "title_entry").?;
@@ -1161,7 +1053,8 @@ pub fn setMouseVisibility(self: *Surface, visible: bool) void {
 pub fn mouseOverLink(self: *Surface, uri_: ?[]const u8) void {
     const uri = uri_ orelse {
         if (self.url_widget) |*widget| {
-            widget.deinit(self.overlay);
+            // FIXME: when Surface gets converted to zig-gobject
+            widget.deinit(@ptrCast(@alignCast(self.overlay)));
             self.url_widget = null;
         }
 
@@ -1179,7 +1072,8 @@ pub fn mouseOverLink(self: *Surface, uri_: ?[]const u8) void {
         return;
     }
 
-    self.url_widget = URLWidget.init(self, uriZ);
+    // FIXME: when Surface gets converted to zig-gobject
+    self.url_widget = URLWidget.init(@ptrCast(@alignCast(self.overlay)), uriZ);
 }
 
 pub fn supportsClipboard(
@@ -1231,7 +1125,7 @@ pub fn setClipboardString(
             self.app.config.@"app-notifications".@"clipboard-copy")
         {
             if (self.container.window()) |window|
-                window.sendToast("Copied to clipboard");
+                window.sendToast(i18n._("Copied to clipboard"));
         }
         return;
     }
@@ -1241,6 +1135,7 @@ pub fn setClipboardString(
         val,
         &self.core_surface,
         .{ .osc_52_write = clipboard_type },
+        self.is_secure_input,
     ) catch |window_err| {
         log.err("failed to create clipboard confirmation window err={}", .{window_err});
     };
@@ -1289,6 +1184,7 @@ fn gtkClipboardRead(
                 str,
                 &self.core_surface,
                 req.state,
+                self.is_secure_input,
             ) catch |window_err| {
                 log.err("failed to create clipboard confirmation window err={}", .{window_err});
             };
@@ -1604,6 +1500,22 @@ fn gtkMouseLeave(
     };
 }
 
+fn gtkMouseScrollPrecisionBegin(
+    _: *c.GtkEventControllerScroll,
+    ud: ?*anyopaque,
+) callconv(.C) void {
+    const self = userdataSelf(ud.?);
+    self.precision_scroll = true;
+}
+
+fn gtkMouseScrollPrecisionEnd(
+    _: *c.GtkEventControllerScroll,
+    ud: ?*anyopaque,
+) callconv(.C) void {
+    const self = userdataSelf(ud.?);
+    self.precision_scroll = false;
+}
+
 fn gtkMouseScroll(
     _: *c.GtkEventControllerScroll,
     x: c.gdouble,
@@ -1614,15 +1526,17 @@ fn gtkMouseScroll(
     const scaled = self.scaledCoordinates(x, y);
 
     // GTK doesn't support any of the scroll mods.
-    const scroll_mods: input.ScrollMods = .{};
+    const scroll_mods: input.ScrollMods = .{ .precision = self.precision_scroll };
+    // Multiply precision scrolls by 10 to get a better response from touchpad scrolling
+    const multiplier: f64 = if (self.precision_scroll) 10 else 1;
 
     self.core_surface.scrollCallback(
         // We invert because we apply natural scrolling to the values.
         // This behavior has existed for years without Linux users complaining
         // but I suspect we'll have to make this configurable in the future
         // or read a system setting.
-        scaled.x * -1,
-        scaled.y * -1,
+        scaled.x * -1 * multiplier,
+        scaled.y * -1 * multiplier,
         scroll_mods,
     ) catch |err| {
         log.err("error in scroll callback err={}", .{err});
@@ -2136,18 +2050,6 @@ pub fn dimSurface(self: *Surface) void {
     c.gtk_overlay_add_overlay(self.overlay, self.unfocused_widget.?);
 }
 
-fn gtkCloseConfirmation(
-    alert: *c.GtkMessageDialog,
-    response: c.gint,
-    ud: ?*anyopaque,
-) callconv(.C) void {
-    c.gtk_window_destroy(@ptrCast(alert));
-    if (response == c.GTK_RESPONSE_YES) {
-        const self = userdataSelf(ud.?);
-        self.container.remove();
-    }
-}
-
 fn userdataSelf(ud: *anyopaque) *Surface {
     return @ptrCast(@alignCast(ud));
 }
@@ -2291,6 +2193,7 @@ fn doPaste(self: *Surface, data: [:0]const u8) void {
                 data,
                 &self.core_surface,
                 .paste,
+                self.is_secure_input,
             ) catch |window_err| {
                 log.err("failed to create clipboard confirmation window err={}", .{window_err});
             };
@@ -2324,6 +2227,7 @@ pub fn defaultTermioEnv(self: *Surface) !std.process.EnvMap {
         env.remove("VK_LAYER_PATH");
         env.remove("XLOCALEDIR");
         env.remove("GDK_PIXBUF_MODULEDIR");
+        env.remove("GDK_PIXBUF_MODULE_FILE");
         env.remove("GTK_PATH");
     }
 
@@ -2380,5 +2284,13 @@ fn gtkPromptTitleResponse(source_object: ?*gobject.Object, result: *gio.AsyncRes
                 log.err("failed to set title={}", .{err});
             };
         }
+    }
+}
+
+pub fn setSecureInput(self: *Surface, value: apprt.action.SecureInput) void {
+    switch (value) {
+        .on => self.is_secure_input = true,
+        .off => self.is_secure_input = false,
+        .toggle => self.is_secure_input = !self.is_secure_input,
     }
 }

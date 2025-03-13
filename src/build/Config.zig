@@ -109,7 +109,6 @@ pub fn init(b: *std.Build) !Config {
 
     //---------------------------------------------------------------
     // Comptime Interfaces
-
     config.font_backend = b.option(
         font.Backend,
         "font-backend",
@@ -360,6 +359,7 @@ pub fn init(b: *std.Build) !Config {
             "libpng",
             "zlib",
             "oniguruma",
+            "gtk4-layer-shell",
         }) |dep| {
             _ = b.systemIntegrationOption(
                 dep,
