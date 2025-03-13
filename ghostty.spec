@@ -260,6 +260,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 %{_bindir}/%{name}
 %{_datadir}/applications/%{project_id}.desktop
 %{_datadir}/kio/servicemenus/%{project_id}.desktop
+%{_datadir}/locale/*/LC_MESSAGES/%{project_id}.mo
 %{_iconsdir}/hicolor/*/apps/%{project_id}.png
 %{_mandir}/man{1,5}/%{name}.*
 
