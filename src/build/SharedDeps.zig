@@ -6,6 +6,9 @@ const HelpStrings = @import("HelpStrings.zig");
 const MetallibStep = @import("MetallibStep.zig");
 const UnicodeTables = @import("UnicodeTables.zig");
 const GhosttyFrameData = @import("GhosttyFrameData.zig");
+const DistResource = @import("GhosttyDist.zig").Resource;
+
+const gresource = @import("../apprt/gtk/gresource.zig");
 
 config: *const Config,
 
@@ -555,6 +558,7 @@ fn addGTK(
             .{ "glib", "glib2" },
             .{ "gobject", "gobject2" },
             .{ "gtk", "gtk4" },
+            .{ "xlib", "xlib2" },
         };
         inline for (gobject_imports) |import| {
             const name, const module = import;
@@ -658,103 +662,96 @@ fn addGTK(
     }
 
     {
-        const gresource = @import("../apprt/gtk/gresource.zig");
+        // Get our gresource c/h files and add them to our build.
+        const dist = gtkDistResources(b);
+        step.addCSourceFile(.{ .file = dist.resources_c.path(b), .flags = &.{} });
+        step.addIncludePath(dist.resources_h.path(b).dirname());
+    }
+}
 
-        const gresource_xml = gresource_xml: {
-            const generate_gresource_xml = b.addExecutable(.{
-                .name = "generate_gresource_xml",
-                .root_source_file = b.path("src/apprt/gtk/gresource.zig"),
-                .target = b.graph.host,
+/// Creates the resources that can be prebuilt for our dist build.
+pub fn gtkDistResources(
+    b: *std.Build,
+) struct {
+    resources_c: DistResource,
+    resources_h: DistResource,
+} {
+    const gresource_xml = gresource_xml: {
+        const xml_exe = b.addExecutable(.{
+            .name = "generate_gresource_xml",
+            .root_source_file = b.path("src/apprt/gtk/gresource.zig"),
+            .target = b.graph.host,
+        });
+        const xml_run = b.addRunArtifact(xml_exe);
+
+        const blueprint_exe = b.addExecutable(.{
+            .name = "gtk_blueprint_compiler",
+            .root_source_file = b.path("src/apprt/gtk/blueprint_compiler.zig"),
+            .target = b.graph.host,
+        });
+        blueprint_exe.linkLibC();
+        blueprint_exe.linkSystemLibrary2("gtk4", dynamic_link_opts);
+        blueprint_exe.linkSystemLibrary2("libadwaita-1", dynamic_link_opts);
+
+        for (gresource.blueprint_files) |blueprint_file| {
+            const blueprint_run = b.addRunArtifact(blueprint_exe);
+            blueprint_run.addArgs(&.{
+                b.fmt("{d}", .{blueprint_file.major}),
+                b.fmt("{d}", .{blueprint_file.minor}),
             });
+            const ui_file = blueprint_run.addOutputFileArg(b.fmt(
+                "{d}.{d}/{s}.ui",
+                .{
+                    blueprint_file.major,
+                    blueprint_file.minor,
+                    blueprint_file.name,
+                },
+            ));
+            blueprint_run.addFileArg(b.path(b.fmt(
+                "src/apprt/gtk/ui/{d}.{d}/{s}.blp",
+                .{
+                    blueprint_file.major,
+                    blueprint_file.minor,
+                    blueprint_file.name,
+                },
+            )));
 
-            const generate = b.addRunArtifact(generate_gresource_xml);
-
-            const gtk_blueprint_compiler = b.addExecutable(.{
-                .name = "gtk_blueprint_compiler",
-                .root_source_file = b.path("src/apprt/gtk/blueprint_compiler.zig"),
-                .target = b.graph.host,
-            });
-            gtk_blueprint_compiler.linkSystemLibrary2("gtk4", dynamic_link_opts);
-            gtk_blueprint_compiler.linkSystemLibrary2("libadwaita-1", dynamic_link_opts);
-            gtk_blueprint_compiler.linkLibC();
-
-            for (gresource.blueprint_files) |blueprint_file| {
-                const blueprint_compiler = b.addRunArtifact(gtk_blueprint_compiler);
-                blueprint_compiler.addArgs(&.{
-                    b.fmt("{d}", .{blueprint_file.major}),
-                    b.fmt("{d}", .{blueprint_file.minor}),
-                });
-                const ui_file = blueprint_compiler.addOutputFileArg(b.fmt(
-                    "{d}.{d}/{s}.ui",
-                    .{
-                        blueprint_file.major,
-                        blueprint_file.minor,
-                        blueprint_file.name,
-                    },
-                ));
-                blueprint_compiler.addFileArg(b.path(b.fmt(
-                    "src/apprt/gtk/ui/{d}.{d}/{s}.blp",
-                    .{
-                        blueprint_file.major,
-                        blueprint_file.minor,
-                        blueprint_file.name,
-                    },
-                )));
-                generate.addFileArg(ui_file);
-            }
-
-            break :gresource_xml generate.captureStdOut();
-        };
-
-        {
-            const gtk_builder_check = b.addExecutable(.{
-                .name = "gtk_builder_check",
-                .root_source_file = b.path("src/apprt/gtk/builder_check.zig"),
-                .target = b.graph.host,
-            });
-            gtk_builder_check.root_module.addOptions("build_options", self.options);
-            if (gobject_) |gobject| {
-                gtk_builder_check.root_module.addImport(
-                    "gtk",
-                    gobject.module("gtk4"),
-                );
-                gtk_builder_check.root_module.addImport(
-                    "adw",
-                    gobject.module("adw1"),
-                );
-            }
-
-            for (gresource.dependencies) |pathname| {
-                const extension = std.fs.path.extension(pathname);
-                if (!std.mem.eql(u8, extension, ".ui")) continue;
-                const check = b.addRunArtifact(gtk_builder_check);
-                check.addFileArg(b.path(pathname));
-                step.step.dependOn(&check.step);
-            }
+            xml_run.addFileArg(ui_file);
         }
 
-        const generate_resources_c = b.addSystemCommand(&.{
-            "glib-compile-resources",
-            "--c-name",
-            "ghostty",
-            "--generate-source",
-            "--target",
-        });
-        const ghostty_resources_c = generate_resources_c.addOutputFileArg("ghostty_resources.c");
-        generate_resources_c.addFileArg(gresource_xml);
-        step.addCSourceFile(.{ .file = ghostty_resources_c, .flags = &.{} });
+        break :gresource_xml xml_run.captureStdOut();
+    };
 
-        const generate_resources_h = b.addSystemCommand(&.{
-            "glib-compile-resources",
-            "--c-name",
-            "ghostty",
-            "--generate-header",
-            "--target",
-        });
-        const ghostty_resources_h = generate_resources_h.addOutputFileArg("ghostty_resources.h");
-        generate_resources_h.addFileArg(gresource_xml);
-        step.addIncludePath(ghostty_resources_h.dirname());
-    }
+    const generate_c = b.addSystemCommand(&.{
+        "glib-compile-resources",
+        "--c-name",
+        "ghostty",
+        "--generate-source",
+        "--target",
+    });
+    const resources_c = generate_c.addOutputFileArg("ghostty_resources.c");
+    generate_c.addFileArg(gresource_xml);
+
+    const generate_h = b.addSystemCommand(&.{
+        "glib-compile-resources",
+        "--c-name",
+        "ghostty",
+        "--generate-header",
+        "--target",
+    });
+    const resources_h = generate_h.addOutputFileArg("ghostty_resources.h");
+    generate_h.addFileArg(gresource_xml);
+
+    return .{
+        .resources_c = .{
+            .dist = "src/apprt/gtk/ghostty_resources.c",
+            .generated = resources_c,
+        },
+        .resources_h = .{
+            .dist = "src/apprt/gtk/ghostty_resources.h",
+            .generated = resources_h,
+        },
+    };
 }
 
 // For dynamic linking, we prefer dynamic linking and to search by

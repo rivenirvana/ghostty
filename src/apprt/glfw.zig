@@ -228,12 +228,14 @@ pub const App = struct {
             .toggle_tab_overview,
             .toggle_window_decorations,
             .toggle_quick_terminal,
+            .toggle_command_palette,
             .toggle_visibility,
             .goto_tab,
             .move_tab,
             .inspector,
             .render_inspector,
             .quit_timer,
+            .float_window,
             .secure_input,
             .key_sequence,
             .desktop_notification,
@@ -246,6 +248,7 @@ pub const App = struct {
             .toggle_maximize,
             .prompt_title,
             .reset_window_size,
+            .ring_bell,
             => {
                 log.info("unimplemented action={}", .{action});
                 return false;

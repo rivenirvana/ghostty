@@ -11,7 +11,7 @@ const App = @import("App.zig");
 const Window = @import("Window.zig");
 const Tab = @import("Tab.zig");
 const Surface = @import("Surface.zig");
-const adwaita = @import("adwaita.zig");
+const adwaita = @import("adw_version.zig");
 
 const log = std.log.scoped(.close_dialog);
 
@@ -64,7 +64,7 @@ fn responseCallback(
     _: *DialogType,
     response: [*:0]const u8,
     target: *Target,
-) callconv(.C) void {
+) callconv(.c) void {
     const alloc = target.allocator();
     defer alloc.destroy(target);
 
@@ -113,11 +113,11 @@ pub const Target = union(enum) {
                 const focused = list.findCustom(null, findActiveWindow);
                 return @ptrCast(@alignCast(focused.f_data));
             },
-            .window => |v| @ptrCast(v.window),
-            .tab => |v| @ptrCast(v.window.window),
-            .surface => |v| surface: {
+            .window => |v| v.window.as(gtk.Window),
+            .tab => |v| v.window.window.as(gtk.Window),
+            .surface => |v| {
                 const window_ = v.container.window() orelse return null;
-                break :surface @ptrCast(window_.window);
+                return window_.window.as(gtk.Window);
             },
         };
     }
@@ -134,14 +134,14 @@ pub const Target = union(enum) {
     fn close(self: Target) void {
         switch (self) {
             .app => |v| v.quitNow(),
-            .window => |v| gtk.Window.destroy(@ptrCast(v.window)),
+            .window => |v| v.window.as(gtk.Window).destroy(),
             .tab => |v| v.remove(),
             .surface => |v| v.container.remove(),
         }
     }
 };
 
-fn findActiveWindow(data: ?*const anyopaque, _: ?*const anyopaque) callconv(.C) c_int {
+fn findActiveWindow(data: ?*const anyopaque, _: ?*const anyopaque) callconv(.c) c_int {
     const window: *gtk.Window = @ptrCast(@alignCast(@constCast(data orelse return -1)));
 
     // Confusingly, `isActive` returns 1 when active,

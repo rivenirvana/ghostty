@@ -12,13 +12,12 @@ const gio = @import("gio");
 const apprt = @import("../../apprt.zig");
 const CoreSurface = @import("../../Surface.zig");
 const App = @import("App.zig");
-const View = @import("View.zig");
 const Builder = @import("Builder.zig");
-const adwaita = @import("adwaita.zig");
+const adw_version = @import("adw_version.zig");
 
 const log = std.log.scoped(.gtk);
 
-const DialogType = if (adwaita.versionAtLeast(1, 5, 0)) adw.AlertDialog else adw.MessageDialog;
+const DialogType = if (adw_version.atLeast(1, 5, 0)) adw.AlertDialog else adw.MessageDialog;
 
 app: *App,
 dialog: *DialogType,
@@ -72,14 +71,14 @@ fn init(
 ) !void {
     var builder = switch (DialogType) {
         adw.AlertDialog => switch (request) {
-            .osc_52_read => Builder.init("ccw-osc-52-read", 1, 5, .blp),
-            .osc_52_write => Builder.init("ccw-osc-52-write", 1, 5, .blp),
-            .paste => Builder.init("ccw-paste", 1, 5, .blp),
+            .osc_52_read => Builder.init("ccw-osc-52-read", 1, 5),
+            .osc_52_write => Builder.init("ccw-osc-52-write", 1, 5),
+            .paste => Builder.init("ccw-paste", 1, 5),
         },
         adw.MessageDialog => switch (request) {
-            .osc_52_read => Builder.init("ccw-osc-52-read", 1, 2, .ui),
-            .osc_52_write => Builder.init("ccw-osc-52-write", 1, 2, .ui),
-            .paste => Builder.init("ccw-paste", 1, 2, .ui),
+            .osc_52_read => Builder.init("ccw-osc-52-read", 1, 2),
+            .osc_52_write => Builder.init("ccw-osc-52-write", 1, 2),
+            .paste => Builder.init("ccw-paste", 1, 2),
         },
         else => unreachable,
     };
@@ -132,37 +131,28 @@ fn init(
         );
     }
 
+    _ = DialogType.signals.response.connect(
+        dialog,
+        *ClipboardConfirmation,
+        gtkResponse,
+        self,
+        .{},
+    );
+
     switch (DialogType) {
         adw.AlertDialog => {
             const parent: ?*gtk.Widget = widget: {
                 const window = core_surface.rt_surface.container.window() orelse break :widget null;
-                break :widget @ptrCast(@alignCast(window.window));
+                break :widget window.window.as(gtk.Widget);
             };
-
-            dialog.choose(parent, null, gtkChoose, self);
+            dialog.as(adw.Dialog).present(parent);
         },
-        adw.MessageDialog => {
-            if (adwaita.versionAtLeast(1, 3, 0)) {
-                dialog.choose(null, gtkChoose, self);
-            } else {
-                _ = adw.MessageDialog.signals.response.connect(
-                    dialog,
-                    *ClipboardConfirmation,
-                    gtkResponse,
-                    self,
-                    .{},
-                );
-                dialog.as(gtk.Widget).show();
-            }
-        },
+        adw.MessageDialog => dialog.as(gtk.Window).present(),
         else => unreachable,
     }
 }
 
-fn gtkChoose(dialog_: ?*gobject.Object, result: *gio.AsyncResult, ud: ?*anyopaque) callconv(.C) void {
-    const dialog = gobject.ext.cast(DialogType, dialog_.?).?;
-    const self: *ClipboardConfirmation = @ptrCast(@alignCast(ud.?));
-    const response = dialog.chooseFinish(result);
+fn gtkResponse(_: *DialogType, response: [*:0]u8, self: *ClipboardConfirmation) callconv(.c) void {
     if (std.mem.orderZ(u8, response, "ok") == .eq) {
         self.core_surface.completeClipboardRequest(
             self.pending_req,
@@ -175,20 +165,7 @@ fn gtkChoose(dialog_: ?*gobject.Object, result: *gio.AsyncResult, ud: ?*anyopaqu
     self.destroy();
 }
 
-fn gtkResponse(_: *DialogType, response: [*:0]u8, self: *ClipboardConfirmation) callconv(.C) void {
-    if (std.mem.orderZ(u8, response, "ok") == .eq) {
-        self.core_surface.completeClipboardRequest(
-            self.pending_req,
-            self.data,
-            true,
-        ) catch |err| {
-            log.err("Failed to requeue clipboard request: {}", .{err});
-        };
-    }
-    self.destroy();
-}
-
-fn gtkRevealButtonClicked(_: *gtk.Button, self: *ClipboardConfirmation) callconv(.C) void {
+fn gtkRevealButtonClicked(_: *gtk.Button, self: *ClipboardConfirmation) callconv(.c) void {
     self.text_view_scroll.as(gtk.Widget).setSensitive(@intFromBool(true));
     self.text_view.as(gtk.Widget).removeCssClass("blurred");
 
@@ -196,7 +173,7 @@ fn gtkRevealButtonClicked(_: *gtk.Button, self: *ClipboardConfirmation) callconv
     self.reveal_button.as(gtk.Widget).setVisible(@intFromBool(false));
 }
 
-fn gtkHideButtonClicked(_: *gtk.Button, self: *ClipboardConfirmation) callconv(.C) void {
+fn gtkHideButtonClicked(_: *gtk.Button, self: *ClipboardConfirmation) callconv(.c) void {
     self.text_view_scroll.as(gtk.Widget).setSensitive(@intFromBool(false));
     self.text_view.as(gtk.Widget).addCssClass("blurred");
 

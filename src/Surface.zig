@@ -518,7 +518,7 @@ pub fn init(
     };
 
     // The command we're going to execute
-    const command: ?[]const u8 = if (app.first)
+    const command: ?configpkg.Command = if (app.first)
         config.@"initial-command" orelse config.command
     else
         config.command;
@@ -650,21 +650,19 @@ pub fn init(
         // title to the command being executed. This allows window managers
         // to set custom styling based on the command being executed.
         const v = command orelse break :xdg;
-        if (v.len > 0) {
-            const title = alloc.dupeZ(u8, v) catch |err| {
-                log.warn(
-                    "error copying command for title, title will not be set err={}",
-                    .{err},
-                );
-                break :xdg;
-            };
-            defer alloc.free(title);
-            _ = try rt_app.performAction(
-                .{ .surface = self },
-                .set_title,
-                .{ .title = title },
+        const title = v.string(alloc) catch |err| {
+            log.warn(
+                "error copying command for title, title will not be set err={}",
+                .{err},
             );
-        }
+            break :xdg;
+        };
+        defer alloc.free(title);
+        _ = try rt_app.performAction(
+            .{ .surface = self },
+            .set_title,
+            .{ .title = title },
+        );
     }
 
     // We are no longer the first surface
@@ -932,6 +930,16 @@ pub fn handleMessage(self: *Surface, msg: Message) !void {
         .present_surface => try self.presentSurface(),
 
         .password_input => |v| try self.passwordInput(v),
+
+        .ring_bell => {
+            _ = self.rt_app.performAction(
+                .{ .surface = self },
+                .ring_bell,
+                {},
+            ) catch |err| {
+                log.warn("apprt failed to ring bell={}", .{err});
+            };
+        },
     }
 }
 
@@ -1033,9 +1041,64 @@ fn mouseRefreshLinks(
     // If the position is outside our viewport, do nothing
     if (pos.x < 0 or pos.y < 0) return;
 
+    // Update the last point that we checked for links so we don't
+    // recheck if the mouse moves some pixels to the same point.
     self.mouse.link_point = pos_vp;
 
-    if (try self.linkAtPos(pos)) |link| {
+    // We use an arena for everything below to make things easy to clean up.
+    // In the case we don't do any allocs this is very cheap to setup
+    // (effectively just struct init).
+    var arena = ArenaAllocator.init(self.alloc);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    // Get our link at the current position. This returns null if there
+    // isn't a link OR if we shouldn't be showing links for some reason
+    // (see further comments for cases).
+    const link_: ?apprt.action.MouseOverLink = link: {
+        // If we clicked and our mouse moved cells then we never
+        // highlight links until the mouse is unclicked. This follows
+        // standard macOS and Linux behavior where a click and drag cancels
+        // mouse actions.
+        const left_idx = @intFromEnum(input.MouseButton.left);
+        if (self.mouse.click_state[left_idx] == .press) click: {
+            const pin = self.mouse.left_click_pin orelse break :click;
+            const click_pt = self.io.terminal.screen.pages.pointFromPin(
+                .viewport,
+                pin.*,
+            ) orelse break :click;
+
+            if (!click_pt.coord().eql(pos_vp)) {
+                log.debug("mouse moved while left click held, ignoring link hover", .{});
+                break :link null;
+            }
+        }
+
+        const link = (try self.linkAtPos(pos)) orelse break :link null;
+        switch (link[0]) {
+            .open => {
+                const str = try self.io.terminal.screen.selectionString(alloc, .{
+                    .sel = link[1],
+                    .trim = false,
+                });
+                break :link .{ .url = str };
+            },
+
+            ._open_osc8 => {
+                // Show the URL in the status bar
+                const pin = link[1].start();
+                const uri = self.osc8URI(pin) orelse {
+                    log.warn("failed to get URI for OSC8 hyperlink", .{});
+                    break :link null;
+                };
+                break :link .{ .url = uri };
+            },
+        }
+    };
+
+    // If we found a link, setup our internal state and notify the
+    // apprt so it can highlight it.
+    if (link_) |link| {
         self.renderer_state.mouse.point = pos_vp;
         self.mouse.over_link = true;
         self.renderer_state.terminal.screen.dirty.hyperlink_hover = true;
@@ -1044,38 +1107,18 @@ fn mouseRefreshLinks(
             .mouse_shape,
             .pointer,
         );
-
-        switch (link[0]) {
-            .open => {
-                const str = try self.io.terminal.screen.selectionString(self.alloc, .{
-                    .sel = link[1],
-                    .trim = false,
-                });
-                defer self.alloc.free(str);
-                _ = try self.rt_app.performAction(
-                    .{ .surface = self },
-                    .mouse_over_link,
-                    .{ .url = str },
-                );
-            },
-
-            ._open_osc8 => link: {
-                // Show the URL in the status bar
-                const pin = link[1].start();
-                const uri = self.osc8URI(pin) orelse {
-                    log.warn("failed to get URI for OSC8 hyperlink", .{});
-                    break :link;
-                };
-                _ = try self.rt_app.performAction(
-                    .{ .surface = self },
-                    .mouse_over_link,
-                    .{ .url = uri },
-                );
-            },
-        }
-
+        _ = try self.rt_app.performAction(
+            .{ .surface = self },
+            .mouse_over_link,
+            link,
+        );
         try self.queueRender();
-    } else if (over_link) {
+        return;
+    }
+
+    // No link, if we're previously over a link then we need to clear
+    // the over-link apprt state.
+    if (over_link) {
         _ = try self.rt_app.performAction(
             .{ .surface = self },
             .mouse_shape,
@@ -1087,6 +1130,7 @@ fn mouseRefreshLinks(
             .{ .url = "" },
         );
         try self.queueRender();
+        return;
     }
 }
 
@@ -1727,7 +1771,7 @@ pub fn keyCallback(
     self: *Surface,
     event: input.KeyEvent,
 ) !InputEffect {
-    // log.debug("text keyCallback event={}", .{event});
+    // log.warn("text keyCallback event={}", .{event});
 
     // Crash metadata in case we crash in here
     crash.sentry.thread_state = self.crashThreadState();
@@ -2550,8 +2594,8 @@ fn mouseReport(
         .x10 => if (action != .press or
             button == null or
             !(button.? == .left or
-            button.? == .right or
-            button.? == .middle)) return,
+                button.? == .right or
+                button.? == .middle)) return,
 
         // Doesn't report motion
         .normal => if (action == .motion) return,
@@ -3459,7 +3503,7 @@ pub fn cursorPosCallback(
         self.mouse.link_point == null or
         (self.mouse.link_point != null and !self.mouse.link_point.?.eql(pos_vp))) and
         (self.io.terminal.flags.mouse_event == .none or
-        (self.mouse.mods.shift and !self.mouseShiftCapture(false))))
+            (self.mouse.mods.shift and !self.mouseShiftCapture(false))))
     {
         // If we were previously over a link, we always update. We do this so that if the text
         // changed underneath us, even if the mouse didn't move, we update the URL hints and state
@@ -4075,6 +4119,14 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
             }, .unlocked);
         },
 
+        .scroll_to_selection => {
+            self.renderer_state.mutex.lock();
+            defer self.renderer_state.mutex.unlock();
+            const sel = self.io.terminal.screen.selection orelse return false;
+            const tl = sel.topLeft(&self.io.terminal.screen);
+            self.io.terminal.screen.scroll(.{ .pin = tl });
+        },
+
         .scroll_page_up => {
             const rows: isize = @intCast(self.size.grid().rows);
             self.io.queueMessage(.{
@@ -4245,10 +4297,22 @@ pub fn performBindingAction(self: *Surface, action: input.Binding.Action) !bool 
             {},
         ),
 
+        .toggle_window_float_on_top => return try self.rt_app.performAction(
+            .{ .surface = self },
+            .float_window,
+            .toggle,
+        ),
+
         .toggle_secure_input => return try self.rt_app.performAction(
             .{ .surface = self },
             .secure_input,
             .toggle,
+        ),
+
+        .toggle_command_palette => return try self.rt_app.performAction(
+            .{ .surface = self },
+            .toggle_command_palette,
+            {},
         ),
 
         .select_all => {

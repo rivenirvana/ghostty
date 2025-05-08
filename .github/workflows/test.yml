@@ -8,9 +8,10 @@ name: Test
 jobs:
   required:
     name: "Required Checks: Test"
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: namespace-profile-ghostty-xsm
     needs:
       - build-bench
+      - build-dist
       - build-flatpak
       - build-linux
       - build-linux-libghostty
@@ -20,6 +21,8 @@ jobs:
       - build-macos-matrix
       - build-windows
       - build-windows-cross
+      - flatpak-check-zig-cache
+      - flatpak
       - test
       - test-gtk
       - test-sentry-linux
@@ -28,8 +31,10 @@ jobs:
       - alejandra
       - typos
       - translations
+      - blueprint-compiler
       - test-pkg-linux
       - test-debian-12
+      - zig-fmt
     steps:
       - id: status
         name: Determine status
@@ -209,6 +214,45 @@ jobs:
       - name: Test NixOS package build
         run: nix build .#ghostty
 
+  build-dist:
+    runs-on: namespace-profile-ghostty-md
+    needs: test
+    env:
+      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
+      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Cache
+        uses: namespacelabs/nscloud-cache-action@v1.2.0
+        with:
+          path: |
+            /nix
+            /zig
+
+      # Install Nix and use that to run our tests so our environment matches exactly.
+      - uses: cachix/install-nix-action@v30
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ghostty
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+      - name: Build and Check Source Tarball
+        run: |
+          rm -rf zig-out/dist
+          nix develop -c zig build distcheck
+          cp zig-out/dist/*.tar.gz ghostty-source.tar.gz
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-tarball
+          path: |-
+            ghostty-source.tar.gz
+
   build-macos:
     runs-on: namespace-profile-ghostty-macos
     needs: test
@@ -309,15 +353,19 @@ jobs:
         os:
           [namespace-profile-ghostty-snap, namespace-profile-ghostty-snap-arm64]
     runs-on: ${{ matrix.os }}
-    needs: test
+    needs: [test, build-dist]
     env:
       ZIG_LOCAL_CACHE_DIR: /zig/local-cache
       ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
     steps:
-      - uses: actions/checkout@v4
+      - name: Download Source Tarball Artifacts
+        uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
-          fetch-tags: true
+          name: source-tarball
+      - name: Extract tarball
+        run: |
+          mkdir dist
+          tar --verbose --extract --strip-components 1 --directory dist --file ghostty-source.tar.gz
       - name: Setup Cache
         uses: namespacelabs/nscloud-cache-action@v1.2.0
         with:
@@ -326,7 +374,14 @@ jobs:
             /zig
       - run: sudo apt install -y udev
       - run: sudo systemctl start systemd-udevd
+      # Workaround until this is fixed: https://github.com/canonical/lxd-pkg-snap/pull/789
+      - run: |
+          _LXD_SNAP_DEVCGROUP_CONFIG="/var/lib/snapd/cgroup/snap.lxd.device"
+          sudo mkdir -p /var/lib/snapd/cgroup
+          echo 'self-managed=true' | sudo tee  "${_LXD_SNAP_DEVCGROUP_CONFIG}"
       - uses: snapcore/action-build@v1
+        with:
+          path: dist
 
   build-windows:
     runs-on: windows-2022
@@ -582,9 +637,36 @@ jobs:
       - name: test
         run: nix develop -c zig build test --system ${{ steps.deps.outputs.deps }}
 
+  zig-fmt:
+    if: github.repository == 'ghostty-org/ghostty'
+    runs-on: namespace-profile-ghostty-xsm
+    timeout-minutes: 60
+    env:
+      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
+      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+    steps:
+      - uses: actions/checkout@v4 # Check out repo so we can lint it
+      - name: Setup Cache
+        uses: namespacelabs/nscloud-cache-action@v1.2.0
+        with:
+          path: |
+            /nix
+            /zig
+      - uses: cachix/install-nix-action@v30
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ghostty
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          skipPush: true
+          useDaemon: false # sometimes fails on short jobs
+      - name: zig fmt
+        run: nix develop -c zig fmt --check .
+
   prettier:
     if: github.repository == 'ghostty-org/ghostty'
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: namespace-profile-ghostty-xsm
     timeout-minutes: 60
     env:
       ZIG_LOCAL_CACHE_DIR: /zig/local-cache
@@ -611,7 +693,7 @@ jobs:
 
   alejandra:
     if: github.repository == 'ghostty-org/ghostty'
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: namespace-profile-ghostty-xsm
     timeout-minutes: 60
     env:
       ZIG_LOCAL_CACHE_DIR: /zig/local-cache
@@ -638,7 +720,7 @@ jobs:
 
   typos:
     if: github.repository == 'ghostty-org/ghostty'
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: namespace-profile-ghostty-xsm
     timeout-minutes: 60
     env:
       ZIG_LOCAL_CACHE_DIR: /zig/local-cache
@@ -665,7 +747,7 @@ jobs:
 
   translations:
     if: github.repository == 'ghostty-org/ghostty'
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: namespace-profile-ghostty-xsm
     timeout-minutes: 60
     env:
       ZIG_LOCAL_CACHE_DIR: /zig/local-cache
@@ -688,16 +770,36 @@ jobs:
           skipPush: true
           useDaemon: false # sometimes fails on short jobs
       - name: check translations
-        run: |
-          old_pot=$(mktemp)
-          cp po/com.mitchellh.ghostty.pot "$old_pot"
-          nix develop -c zig build update-translations
+        run: nix develop -c .github/scripts/check-translations.sh
 
-          # Compare previous POT to current POT
-          msgcmp "$old_pot" po/com.mitchellh.ghostty.pot --use-untranslated
-
-          # Compare all other POs to current POT
-          for f in po/*.po; do msgcmp "$f" po/com.mitchellh.ghostty.pot; done
+  blueprint-compiler:
+    if: github.repository == 'ghostty-org/ghostty'
+    runs-on: namespace-profile-ghostty-xsm
+    timeout-minutes: 60
+    env:
+      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
+      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+    steps:
+      - uses: actions/checkout@v4 # Check out repo so we can lint it
+      - name: Setup Cache
+        uses: namespacelabs/nscloud-cache-action@v1.2.0
+        with:
+          path: |
+            /nix
+            /zig
+      - uses: cachix/install-nix-action@v30
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ghostty
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          skipPush: true
+          useDaemon: false # sometimes fails on short jobs
+      - name: check blueprints
+        run: nix develop -c ./nix/build-support/check-blueprints.sh
+      - name: check unchanged
+        run: git diff --exit-code
 
   test-pkg-linux:
     strategy:
@@ -737,22 +839,81 @@ jobs:
   test-debian-12:
     name: Test build on Debian 12
     runs-on: namespace-profile-ghostty-sm
-    needs: test
+    needs: [test, build-dist]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Install and configure Namespace CLI
         uses: namespacelabs/nscloud-setup@v0
 
       - name: Configure Namespace powered Buildx
         uses: namespacelabs/nscloud-setup-buildx-action@v0
 
+      - name: Download Source Tarball Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tarball
+
+      - name: Extract tarball
+        run: |
+          mkdir dist
+          tar --verbose --extract --strip-components 1 --directory dist --file ghostty-source.tar.gz
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: src/build/docker/debian/Dockerfile
+          context: dist
+          file: dist/src/build/docker/debian/Dockerfile
           build-args: |
             DISTRO_VERSION=12
-            ZIG_VERSION=0.14.0
+
+  flatpak-check-zig-cache:
+    if: github.repository == 'ghostty-org/ghostty'
+    runs-on: namespace-profile-ghostty-xsm
+    env:
+      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
+      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Cache
+        uses: namespacelabs/nscloud-cache-action@v1.2.0
+        with:
+          path: |
+            /nix
+            /zig
+      - name: Setup Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ghostty
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          useDaemon: false # sometimes fails on short jobs
+      - name: Check Flatpak Zig Dependencies
+        run: nix develop -c ./flatpak/build-support/check-zig-cache.sh
+
+  flatpak:
+    if: github.repository == 'ghostty-org/ghostty'
+    name: "Flatpak"
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-47
+      options: --privileged
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - arch: x86_64
+            runner: namespace-profile-ghostty-md
+          - arch: aarch64
+            runner: namespace-profile-ghostty-md-arm64
+    runs-on: ${{ matrix.variant.runner }}
+    needs: [flatpak-check-zig-cache, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: com.mitchellh.ghostty
+          manifest-path: flatpak/com.mitchellh.ghostty.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+          arch: ${{ matrix.variant.arch }}
+          verbose: true

@@ -37,7 +37,7 @@ const CloseDialog = @import("CloseDialog.zig");
 const inspectorpkg = @import("inspector.zig");
 const gtk_key = @import("key.zig");
 const Builder = @import("Builder.zig");
-const adwaita = @import("adwaita.zig");
+const adw_version = @import("adw_version.zig");
 
 const log = std.log.scoped(.gtk_surface);
 
@@ -370,6 +370,7 @@ pub fn init(self: *Surface, app: *App, opts: Options) !void {
 
     // Create an overlay so we can layer the GL area with other widgets.
     const overlay = gtk.Overlay.new();
+    errdefer overlay.unref();
     const overlay_widget = overlay.as(gtk.Widget);
     overlay.setChild(gl_area_widget);
 
@@ -522,7 +523,7 @@ pub fn init(self: *Surface, app: *App, opts: Options) !void {
 
     // initialize the context menu
     self.context_menu.init(self);
-    self.context_menu.setParent(@ptrCast(@alignCast(overlay)));
+    self.context_menu.setParent(overlay.as(gtk.Widget));
 
     // initialize the resize overlay
     self.resize_overlay.init(self, &app.config);
@@ -920,8 +921,7 @@ pub fn setInitialWindowSize(self: *const Surface, width: u32, height: u32) !void
     const window = self.container.window() orelse return;
     if (window.notebook.nPages() > 1) return;
 
-    // FIXME: when Window is converted to zig-gobject
-    const gtk_window: *gtk.Window = @ptrCast(@alignCast(window.window));
+    const gtk_window = window.window.as(gtk.Window);
 
     // Note: this doesn't properly take into account the window decorations.
     // I'm not currently sure how to do that.
@@ -941,8 +941,7 @@ pub fn setSizeLimits(self: *const Surface, min: apprt.SurfaceSize, max_: ?apprt.
     const window = self.container.window() orelse return;
     if (window.notebook.nPages() > 1) return;
 
-    // FIXME: when Window is converted to zig-gobject
-    const widget: *gtk.Widget = @ptrCast(@alignCast(window.window));
+    const widget = window.window.as(gtk.Widget);
 
     // Note: this doesn't properly take into account the window decorations.
     // I'm not currently sure how to do that.
@@ -1026,7 +1025,7 @@ pub fn setTitle(self: *Surface, slice: [:0]const u8, source: SetTitleSource) !vo
     self.update_title_timer = glib.timeoutAdd(75, updateTitleTimerExpired, self);
 }
 
-fn updateTitleTimerExpired(ud: ?*anyopaque) callconv(.C) c_int {
+fn updateTitleTimerExpired(ud: ?*anyopaque) callconv(.c) c_int {
     const self: *Surface = @ptrCast(@alignCast(ud.?));
 
     self.updateTitleLabels();
@@ -1059,17 +1058,17 @@ fn resolveTitle(self: *Surface, title: [:0]const u8) [:0]const u8 {
 }
 
 pub fn promptTitle(self: *Surface) !void {
-    if (!adwaita.versionAtLeast(1, 5, 0)) return;
+    if (!adw_version.atLeast(1, 5, 0)) return;
     const window = self.container.window() orelse return;
 
-    var builder = Builder.init("prompt-title-dialog", 1, 5, .blp);
+    var builder = Builder.init("prompt-title-dialog", 1, 5);
     defer builder.deinit();
 
     const entry = builder.getObject(gtk.Entry, "title_entry").?;
     entry.getBuffer().setText(self.getTitle() orelse "", -1);
 
     const dialog = builder.getObject(adw.AlertDialog, "prompt_title_dialog").?;
-    dialog.choose(@ptrCast(window.window), null, gtkPromptTitleResponse, self);
+    dialog.choose(window.window.as(gtk.Widget), null, gtkPromptTitleResponse, self);
 }
 
 /// Set the current working directory of the surface.
@@ -1167,9 +1166,8 @@ pub fn setMouseVisibility(self: *Surface, visible: bool) void {
         return;
     }
 
-    // FIXME: when App is converted to zig-gobject
     // Set our new cursor to the app "none" cursor
-    widget.setCursor(@ptrCast(@alignCast(self.app.cursor_none)));
+    widget.setCursor(self.app.cursor_none);
 }
 
 pub fn mouseOverLink(self: *Surface, uri_: ?[]const u8) void {
@@ -1222,7 +1220,7 @@ pub fn clipboardRequest(
     ud_ptr.* = .{ .self = self, .state = state };
 
     // Start our async request
-    const clipboard = getClipboard(@ptrCast(self.gl_area), clipboard_type) orelse return;
+    const clipboard = getClipboard(self.gl_area.as(gtk.Widget), clipboard_type) orelse return;
 
     clipboard.readTextAsync(null, gtkClipboardRead, ud_ptr);
 }
@@ -1234,7 +1232,7 @@ pub fn setClipboardString(
     confirm: bool,
 ) !void {
     if (!confirm) {
-        const clipboard = getClipboard(@ptrCast(self.gl_area), clipboard_type) orelse return;
+        const clipboard = getClipboard(self.gl_area.as(gtk.Widget), clipboard_type) orelse return;
         clipboard.setText(val);
 
         // We only toast if we are copying to the standard clipboard.
@@ -1267,7 +1265,7 @@ fn gtkClipboardRead(
     source: ?*gobject.Object,
     res: *gio.AsyncResult,
     ud: ?*anyopaque,
-) callconv(.C) void {
+) callconv(.c) void {
     const clipboard = gobject.ext.cast(gdk.Clipboard, source orelse return) orelse return;
     const req: *ClipboardRequest = @ptrCast(@alignCast(ud orelse return));
     const self = req.self;
@@ -1344,15 +1342,14 @@ pub fn showDesktopNotification(
     const pointer = glib.Variant.newUint64(@intFromPtr(&self.core_surface));
     notification.setDefaultActionAndTargetValue("app.present-surface", pointer);
 
-    // FIXME: when App.zig gets converted to zig-gobject
-    const app: gio.Application = @ptrCast(@alignCast(self.app.app));
+    const app = self.app.app.as(gio.Application);
 
     // We set the notification ID to the body content. If the content is the
     // same, this notification may replace a previous notification
     app.sendNotification(body.ptr, notification);
 }
 
-fn gtkRealize(gl_area: *gtk.GLArea, self: *Surface) callconv(.C) void {
+fn gtkRealize(gl_area: *gtk.GLArea, self: *Surface) callconv(.c) void {
     log.debug("gl surface realized", .{});
 
     // We need to make the context current so we can call GL functions.
@@ -1380,16 +1377,35 @@ fn gtkRealize(gl_area: *gtk.GLArea, self: *Surface) callconv(.C) void {
 
 /// This is called when the underlying OpenGL resources must be released.
 /// This is usually due to the OpenGL area changing GDK surfaces.
-fn gtkUnrealize(_: *gtk.GLArea, self: *Surface) callconv(.C) void {
+fn gtkUnrealize(gl_area: *gtk.GLArea, self: *Surface) callconv(.c) void {
     log.debug("gl surface unrealized", .{});
-    self.core_surface.renderer.displayUnrealized();
 
     // See gtkRealize for why we do this here.
     self.im_context.as(gtk.IMContext).setClientWidget(null);
+
+    // There is no guarantee that our GLArea context is current
+    // when unrealize is emitted, so we need to make it current.
+    gl_area.makeCurrent();
+    if (gl_area.getError()) |err| {
+        // I don't know a scenario this can happen, but it means
+        // we probably leaked memory because displayUnrealized
+        // below frees resources that aren't specifically OpenGL
+        // related. I didn't make the OpenGL renderer handle this
+        // scenario because I don't know if its even possible
+        // under valid circumstances, so let's log.
+        log.warn(
+            "gl_area_make_current failed in unrealize msg={s}",
+            .{err.f_message orelse "(no message)"},
+        );
+        log.warn("OpenGL resources and memory likely leaked", .{});
+        return;
+    } else {
+        self.core_surface.renderer.displayUnrealized();
+    }
 }
 
 /// render signal
-fn gtkRender(_: *gtk.GLArea, _: *gdk.GLContext, self: *Surface) callconv(.C) c_int {
+fn gtkRender(_: *gtk.GLArea, _: *gdk.GLContext, self: *Surface) callconv(.c) c_int {
     self.render() catch |err| {
         log.err("surface failed to render: {}", .{err});
         return 0;
@@ -1399,7 +1415,7 @@ fn gtkRender(_: *gtk.GLArea, _: *gdk.GLContext, self: *Surface) callconv(.C) c_i
 }
 
 /// resize signal
-fn gtkResize(gl_area: *gtk.GLArea, width: c_int, height: c_int, self: *Surface) callconv(.C) void {
+fn gtkResize(gl_area: *gtk.GLArea, width: c_int, height: c_int, self: *Surface) callconv(.c) void {
     // Some debug output to help understand what GTK is telling us.
     {
         const scale_factor = scale: {
@@ -1409,8 +1425,7 @@ fn gtkResize(gl_area: *gtk.GLArea, width: c_int, height: c_int, self: *Surface) 
 
         const window_scale_factor = scale: {
             const window = self.container.window() orelse break :scale 0;
-            // FIXME: when Window.zig is converted to zig-gobject
-            const gtk_window: *gtk.Window = @ptrCast(@alignCast(window.window));
+            const gtk_window = window.window.as(gtk.Window);
             const gtk_native = gtk_window.as(gtk.Native);
             const gdk_surface = gtk_native.getSurface() orelse break :scale 0;
             break :scale gdk_surface.getScaleFactor();
@@ -1456,7 +1471,7 @@ fn gtkResize(gl_area: *gtk.GLArea, width: c_int, height: c_int, self: *Surface) 
 }
 
 /// "destroy" signal for surface
-fn gtkDestroy(_: *gtk.GLArea, self: *Surface) callconv(.C) void {
+fn gtkDestroy(_: *gtk.GLArea, self: *Surface) callconv(.c) void {
     log.debug("gl destroy", .{});
 
     const alloc = self.app.core_app.alloc;
@@ -1490,7 +1505,7 @@ fn gtkMouseDown(
     x: f64,
     y: f64,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     const event = gesture.as(gtk.EventController).getCurrentEvent() orelse return;
 
     const gtk_mods = event.getModifierState();
@@ -1523,7 +1538,7 @@ fn gtkMouseUp(
     _: f64,
     _: f64,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     const event = gesture.as(gtk.EventController).getCurrentEvent() orelse return;
 
     const gtk_mods = event.getModifierState();
@@ -1542,7 +1557,7 @@ fn gtkMouseMotion(
     x: f64,
     y: f64,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     const event = ec.as(gtk.EventController).getCurrentEvent() orelse return;
 
     const scaled = self.scaledCoordinates(x, y);
@@ -1588,7 +1603,7 @@ fn gtkMouseMotion(
 fn gtkMouseLeave(
     ec_motion: *gtk.EventControllerMotion,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     const event = ec_motion.as(gtk.EventController).getCurrentEvent() orelse return;
 
     // Get our modifiers
@@ -1603,14 +1618,14 @@ fn gtkMouseLeave(
 fn gtkMouseScrollPrecisionBegin(
     _: *gtk.EventControllerScroll,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     self.precision_scroll = true;
 }
 
 fn gtkMouseScrollPrecisionEnd(
     _: *gtk.EventControllerScroll,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     self.precision_scroll = false;
 }
 
@@ -1619,7 +1634,7 @@ fn gtkMouseScroll(
     x: f64,
     y: f64,
     self: *Surface,
-) callconv(.C) c_int {
+) callconv(.c) c_int {
     const scaled = self.scaledCoordinates(x, y);
 
     // GTK doesn't support any of the scroll mods.
@@ -1649,7 +1664,7 @@ fn gtkKeyPressed(
     keycode: c_uint,
     gtk_mods: gdk.ModifierType,
     self: *Surface,
-) callconv(.C) c_int {
+) callconv(.c) c_int {
     return @intFromBool(self.keyEvent(
         .press,
         ec_key,
@@ -1665,7 +1680,7 @@ fn gtkKeyReleased(
     keycode: c_uint,
     state: gdk.ModifierType,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     _ = self.keyEvent(
         .release,
         ec_key,
@@ -1956,7 +1971,7 @@ pub fn keyEvent(
 fn gtkInputPreeditStart(
     _: *gtk.IMMulticontext,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     // log.warn("GTKIM: preedit start", .{});
 
     // Start our composing state for the input method and reset our
@@ -1968,7 +1983,15 @@ fn gtkInputPreeditStart(
 fn gtkInputPreeditChanged(
     ctx: *gtk.IMMulticontext,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
+    // Any preedit change should mark that we're composing. Its possible this
+    // is false using fcitx5-hangul and typing "dkssud<space>" ("안녕"). The
+    // second "s" results in a "commit" for "안" which sets composing to false,
+    // but then immediately sends a preedit change for the next symbol. With
+    // composing set to false we won't commit this text. Therefore, we must
+    // ensure it is set here.
+    self.im_composing = true;
+
     // Get our pre-edit string that we'll use to show the user.
     var buf: [*:0]u8 = undefined;
     ctx.as(gtk.IMContext).getPreeditString(&buf, null, null);
@@ -1986,7 +2009,7 @@ fn gtkInputPreeditChanged(
 fn gtkInputPreeditEnd(
     _: *gtk.IMMulticontext,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     // log.warn("GTKIM: preedit end", .{});
 
     // End our composing state for GTK, allowing us to commit the text.
@@ -2002,7 +2025,7 @@ fn gtkInputCommit(
     _: *gtk.IMMulticontext,
     bytes: [*:0]u8,
     self: *Surface,
-) callconv(.C) void {
+) callconv(.c) void {
     const str = std.mem.sliceTo(bytes, 0);
 
     // log.debug("GTKIM: input commit composing={} keyevent={} str={s}", .{
@@ -2077,7 +2100,7 @@ fn gtkInputCommit(
     };
 }
 
-fn gtkFocusEnter(_: *gtk.EventControllerFocus, self: *Surface) callconv(.C) void {
+fn gtkFocusEnter(_: *gtk.EventControllerFocus, self: *Surface) callconv(.c) void {
     if (!self.realized) return;
 
     // Notify our IM context
@@ -2102,7 +2125,7 @@ fn gtkFocusEnter(_: *gtk.EventControllerFocus, self: *Surface) callconv(.C) void
     };
 }
 
-fn gtkFocusLeave(_: *gtk.EventControllerFocus, self: *Surface) callconv(.C) void {
+fn gtkFocusLeave(_: *gtk.EventControllerFocus, self: *Surface) callconv(.c) void {
     if (!self.realized) return;
 
     // Notify our IM context
@@ -2146,10 +2169,6 @@ pub fn dimSurface(self: *Surface) void {
     };
 }
 
-fn userdataSelf(ud: *anyopaque) *Surface {
-    return @ptrCast(@alignCast(ud));
-}
-
 fn translateMouseButton(button: c_uint) input.MouseButton {
     return switch (button) {
         1 => .left,
@@ -2173,9 +2192,7 @@ pub fn present(self: *Surface) void {
             if (window.notebook.getTabPosition(tab)) |position|
                 _ = window.notebook.gotoNthTab(position);
         }
-        // FIXME: when Window.zig is converted to zig-gobject
-        const gtk_window: *gtk.Window = @ptrCast(@alignCast(window.window));
-        gtk_window.present();
+        window.window.as(gtk.Window).present();
     }
 
     self.grabFocus();
@@ -2201,16 +2218,14 @@ pub fn setSplitZoom(self: *Surface, new_split_zoom: bool) void {
     const tab_widget = tab.elem.widget();
     const surface_widget = self.primaryWidget();
 
-    // FIXME: when Tab.zig is converted to zig-gobject
-    const box: *gtk.Box = @ptrCast(@alignCast(tab.box));
     if (new_split_zoom) {
         self.detachFromSplit();
-        box.remove(tab_widget);
-        box.append(surface_widget);
+        tab.box.remove(tab_widget);
+        tab.box.append(surface_widget);
     } else {
-        box.remove(surface_widget);
+        tab.box.remove(surface_widget);
         self.attachToSplit();
-        box.append(tab_widget);
+        tab.box.append(tab_widget);
     }
 
     self.zoomed_in = new_split_zoom;
@@ -2228,7 +2243,7 @@ fn gtkDrop(
     _: f64,
     _: f64,
     self: *Surface,
-) callconv(.C) c_int {
+) callconv(.c) c_int {
     const alloc = self.app.core_app.alloc;
 
     if (g_value_holds(value, gdk.FileList.getGObjectType())) {
@@ -2380,10 +2395,10 @@ fn g_value_holds(value_: ?*gobject.Value, g_type: gobject.Type) bool {
     return false;
 }
 
-fn gtkPromptTitleResponse(source_object: ?*gobject.Object, result: *gio.AsyncResult, ud: ?*anyopaque) callconv(.C) void {
-    if (!adwaita.versionAtLeast(1, 5, 0)) return;
+fn gtkPromptTitleResponse(source_object: ?*gobject.Object, result: *gio.AsyncResult, ud: ?*anyopaque) callconv(.c) void {
+    if (!adw_version.supportsDialogs()) return;
     const dialog = gobject.ext.cast(adw.AlertDialog, source_object.?).?;
-    const self = userdataSelf(ud orelse return);
+    const self: *Surface = @ptrCast(@alignCast(ud));
 
     const response = dialog.chooseFinish(result);
     if (std.mem.orderZ(u8, "ok", response) == .eq) {
@@ -2422,5 +2437,27 @@ pub fn setSecureInput(self: *Surface, value: apprt.action.SecureInput) void {
         .on => self.is_secure_input = true,
         .off => self.is_secure_input = false,
         .toggle => self.is_secure_input = !self.is_secure_input,
+    }
+}
+
+pub fn ringBell(self: *Surface) !void {
+    const features = self.app.config.@"bell-features";
+    const window = self.container.window() orelse {
+        log.warn("failed to ring bell: surface is not attached to any window", .{});
+        return;
+    };
+
+    // System beep
+    if (features.system) system: {
+        const surface = window.window.as(gtk.Native).getSurface() orelse break :system;
+        surface.beep();
+    }
+
+    // Mark tab as needing attention
+    if (self.container.tab()) |tab| tab: {
+        const page = window.notebook.getTabPage(tab) orelse break :tab;
+
+        // Need attention if we're not the currently selected tab
+        if (page.getSelected() == 0) page.setNeedsAttention(@intFromBool(true));
     }
 }

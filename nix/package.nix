@@ -1,26 +1,12 @@
 {
   lib,
   stdenv,
-  bzip2,
   callPackage,
-  expat,
-  fontconfig,
-  freetype,
-  harfbuzz,
-  libpng,
-  oniguruma,
-  zlib,
-  libGL,
-  glib,
-  gtk4,
-  gtk4-layer-shell,
   gobject-introspection,
-  libadwaita,
   blueprint-compiler,
   libxml2,
   gettext,
   wrapGAppsHook4,
-  gsettings-desktop-schemas,
   git,
   ncurses,
   pkg-config,
@@ -29,14 +15,10 @@
   revision ? "dirty",
   optimize ? "Debug",
   enableX11 ? true,
-  libX11,
-  libXcursor,
-  libXi,
-  libXrandr,
   enableWayland ? true,
-  wayland,
   wayland-protocols,
   wayland-scanner,
+  pkgs,
 }: let
   # The Zig hook has no way to select the release type without actual
   # overriding of the default flags.
@@ -48,10 +30,16 @@
   zig_hook = zig_0_14.hook.overrideAttrs {
     zig_default_flags = "-Dcpu=baseline -Doptimize=${optimize} --color off";
   };
+  gi_typelib_path = import ./build-support/gi-typelib-path.nix {
+    inherit pkgs lib stdenv;
+  };
+  buildInputs = import ./build-support/build-inputs.nix {
+    inherit pkgs lib stdenv enableX11 enableWayland;
+  };
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "ghostty";
-    version = "1.1.3";
+    version = "1.1.4";
 
     # We limit source like this to try and reduce the amount of rebuilds as possible
     # thus we only provide the source that is needed for the build
@@ -96,37 +84,11 @@ in
         wayland-protocols
       ];
 
-    buildInputs =
-      [
-        libGL
-      ]
-      ++ lib.optionals stdenv.hostPlatform.isLinux [
-        bzip2
-        expat
-        fontconfig
-        freetype
-        harfbuzz
-        libpng
-        oniguruma
-        zlib
-
-        libadwaita
-        gtk4
-        glib
-        gsettings-desktop-schemas
-      ]
-      ++ lib.optionals enableX11 [
-        libX11
-        libXcursor
-        libXi
-        libXrandr
-      ]
-      ++ lib.optionals enableWayland [
-        gtk4-layer-shell
-        wayland
-      ];
+    buildInputs = buildInputs;
 
     dontConfigure = true;
+
+    GI_TYPELIB_PATH = gi_typelib_path;
 
     zigBuildFlags = [
       "--system"

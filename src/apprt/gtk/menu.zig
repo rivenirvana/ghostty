@@ -41,7 +41,7 @@ pub fn Menu(
                 else => unreachable,
             };
 
-            var builder = Builder.init("menu-" ++ object_type ++ "-" ++ menu_name, 1, 0, .blp);
+            var builder = Builder.init("menu-" ++ object_type ++ "-" ++ menu_name, 1, 0);
             defer builder.deinit();
 
             const menu_model = builder.getObject(gio.MenuModel, "menu").?;
@@ -92,17 +92,17 @@ pub fn Menu(
         pub fn refresh(self: *const Self) void {
             const window: *gtk.Window, const has_selection: bool = switch (T) {
                 Window => window: {
-                    const core_surface = self.parent.actionSurface() orelse break :window .{
-                        @ptrCast(@alignCast(self.parent.window)),
-                        false,
-                    };
-                    const has_selection = core_surface.hasSelection();
-                    break :window .{ @ptrCast(@alignCast(self.parent.window)), has_selection };
+                    const has_selection = if (self.parent.actionSurface()) |core_surface|
+                        core_surface.hasSelection()
+                    else
+                        false;
+
+                    break :window .{ self.parent.window.as(gtk.Window), has_selection };
                 },
                 Surface => surface: {
                     const window = self.parent.container.window() orelse return;
                     const has_selection = self.parent.core_surface.hasSelection();
-                    break :surface .{ @ptrCast(@alignCast(window.window)), has_selection };
+                    break :surface .{ window.window.as(gtk.Window), has_selection };
                 },
                 else => unreachable,
             };
@@ -130,7 +130,7 @@ pub fn Menu(
         }
 
         /// Refocus tab that lost focus because of the popover menu
-        fn gtkRefocusTerm(_: *gtk.PopoverMenu, self: *Self) callconv(.C) void {
+        fn gtkRefocusTerm(_: *gtk.PopoverMenu, self: *Self) callconv(.c) void {
             const window: *Window = switch (T) {
                 Window => self.parent,
                 Surface => self.parent.container.window() orelse return,

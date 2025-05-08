@@ -22,7 +22,6 @@ const inputpkg = @import("../input.zig");
 const terminal = @import("../terminal/main.zig");
 const internal_os = @import("../os/main.zig");
 const cli = @import("../cli.zig");
-const Command = @import("../Command.zig");
 
 const conditional = @import("conditional.zig");
 const Conditional = conditional.Conditional;
@@ -34,6 +33,7 @@ const KeyValue = @import("key.zig").Value;
 const ErrorList = @import("ErrorList.zig");
 const MetricModifier = fontpkg.Metrics.Modifier;
 const help_strings = @import("help_strings");
+pub const Command = @import("command.zig").Command;
 const RepeatableStringMap = @import("RepeatableStringMap.zig");
 pub const Path = @import("path.zig").Path;
 pub const RepeatablePath = @import("path.zig").RepeatablePath;
@@ -691,8 +691,17 @@ palette: Palette = .{},
 ///   * `passwd` entry (user information)
 ///
 /// This can contain additional arguments to run the command with. If additional
-/// arguments are provided, the command will be executed using `/bin/sh -c`.
-/// Ghostty does not do any shell command parsing.
+/// arguments are provided, the command will be executed using `/bin/sh -c`
+/// to offload shell argument expansion.
+///
+/// To avoid shell expansion altogether, prefix the command with `direct:`,
+/// e.g. `direct:nvim foo`. This will avoid the roundtrip to `/bin/sh` but will
+/// also not support any shell parsing such as arguments with spaces, filepaths
+/// with `~`, globs, etc.
+///
+/// You can also explicitly prefix the command with `shell:` to always
+/// wrap the command in a shell. This can be used to ensure our heuristics
+/// to choose the right mode are not used in case they are wrong.
 ///
 /// This command will be used for all new terminal surfaces, i.e. new windows,
 /// tabs, etc. If you want to run a command only for the first terminal surface
@@ -702,7 +711,7 @@ palette: Palette = .{},
 /// arguments. For example, `ghostty -e fish --with --custom --args`.
 /// This flag sets the `initial-command` configuration, see that for more
 /// information.
-command: ?[]const u8 = null,
+command: ?Command = null,
 
 /// This is the same as "command", but only applies to the first terminal
 /// surface created when Ghostty starts. Subsequent terminal surfaces will use
@@ -717,6 +726,10 @@ command: ?[]const u8 = null,
 /// with arguments directly: you can use the `-e` flag. For example: `ghostty -e
 /// fish --with --custom --args`. The `-e` flag automatically forces some
 /// other behaviors as well:
+///
+///   * Disables shell expansion since the input is expected to already
+///     be shell-expanded by the upstream (e.g. the shell used to type in
+///     the `ghostty -e` command).
 ///
 ///   * `gtk-single-instance=false` - This ensures that a new instance is
 ///     launched and the CLI args are respected.
@@ -735,7 +748,7 @@ command: ?[]const u8 = null,
 ///     name your binary appropriately or source the shell integration script
 ///     manually.
 ///
-@"initial-command": ?[]const u8 = null,
+@"initial-command": ?Command = null,
 
 /// Extra environment variables to pass to commands launched in a terminal
 /// surface. The format is `env=KEY=VALUE`.
@@ -826,7 +839,7 @@ env: RepeatableStringMap = .{},
 link: RepeatableLink = .{},
 
 /// Enable URL matching. URLs are matched on hover with control (Linux) or
-/// super (macOS) pressed and open using the default system application for
+/// command (macOS) pressed and open using the default system application for
 /// the linked URL.
 ///
 /// The URL matcher is always lowest priority of any configured links (see
@@ -1848,6 +1861,28 @@ keybind: Keybinds = .{},
 /// open terminals.
 @"custom-shader-animation": CustomShaderAnimation = .true,
 
+/// The list of enabled features that are activated after encountering
+/// a bell character.
+///
+/// Valid values are:
+///
+///  * `system`
+///
+///    Instructs the system to notify the user using built-in system functions.
+///    This could result in an audiovisual effect, a notification, or something
+///    else entirely. Changing these effects require altering system settings:
+///    for instance under the "Sound > Alert Sound" setting in GNOME,
+///    or the "Accessibility > System Bell" settings in KDE Plasma.
+///
+///    On macOS this has no affect.
+///
+/// On macOS, if the app is unfocused, it will bounce the app icon in the dock
+/// once. Additionally, the title of the window with the alerted terminal
+/// surface will contain a bell emoji (🔔) until the terminal is focused
+/// or a key is pressed. These are not currently configurable since they're
+/// considered unobtrusive.
+@"bell-features": BellFeatures = .{},
+
 /// Control the in-app notifications that Ghostty shows.
 ///
 /// On Linux (GTK), in-app notifications show up as toasts. Toasts appear
@@ -1969,7 +2004,7 @@ keybind: Keybinds = .{},
 
 /// macOS doesn't have a distinct "alt" key and instead has the "option"
 /// key which behaves slightly differently. On macOS by default, the
-/// option key plus a character will sometimes produces a Unicode character.
+/// option key plus a character will sometimes produce a Unicode character.
 /// For example, on US standard layouts option-b produces "∫". This may be
 /// undesirable if you want to use "option" as an "alt" key for keybindings
 /// in terminal programs or shells.
@@ -2186,14 +2221,6 @@ keybind: Keybinds = .{},
 /// debug builds, `false` for all others.
 @"gtk-opengl-debug": bool = builtin.mode == .Debug,
 
-/// After GTK 4.14.0, we need to force the GSK renderer to OpenGL as the default
-/// GSK renderer is broken on some systems. If you would like to override
-/// that bekavior, set `gtk-gsk-renderer=default` and either use your system's
-/// default GSK renderer, or set the GSK_RENDERER environment variable to your
-/// renderer of choice before launching Ghostty. This setting has no effect when
-/// using versions of GTK earlier than 4.14.0.
-@"gtk-gsk-renderer": GtkGskRenderer = .opengl,
-
 /// If `true`, the Ghostty GTK application will run in single-instance mode:
 /// each new `ghostty` process launched will result in a new window if there is
 /// already a running process.
@@ -2248,6 +2275,18 @@ keybind: Keybinds = .{},
 @"gtk-wide-tabs": bool = true,
 
 /// Custom CSS files to be loaded.
+///
+/// GTK CSS documentation can be found at the following links:
+///
+///   * <https://docs.gtk.org/gtk4/css-overview.html> - An overview of GTK CSS.
+///   * <https://docs.gtk.org/gtk4/css-properties.html> - A comprehensive list
+///     of supported CSS properties.
+///
+/// Launch Ghostty with `env GTK_DEBUG=interactive ghostty` to tweak Ghostty's
+/// CSS in real time using the GTK Inspector. Errors in your CSS files would
+/// also be reported in the terminal you started Ghostty from. See
+/// <https://developer.gnome.org/documentation/tools/inspector.html> for more
+/// information about the GTK Inspector.
 ///
 /// This configuration can be repeated multiple times to load multiple files.
 /// Prepend a ? character to the file path to suppress errors if the file does
@@ -2572,21 +2611,17 @@ pub fn loadCliArgs(self: *Config, alloc_gpa: Allocator) !void {
 
             // Next, take all remaining args and use that to build up
             // a command to execute.
-            var command = std.ArrayList(u8).init(arena_alloc);
-            errdefer command.deinit();
+            var builder = std.ArrayList([:0]const u8).init(arena_alloc);
+            errdefer builder.deinit();
             for (args) |arg_raw| {
                 const arg = std.mem.sliceTo(arg_raw, 0);
-                try self._replay_steps.append(
-                    arena_alloc,
-                    .{ .arg = try arena_alloc.dupe(u8, arg) },
-                );
-
-                try command.appendSlice(arg);
-                try command.append(' ');
+                const copy = try arena_alloc.dupeZ(u8, arg);
+                try self._replay_steps.append(arena_alloc, .{ .arg = copy });
+                try builder.append(copy);
             }
 
             self.@"_xdg-terminal-exec" = true;
-            self.@"initial-command" = command.items[0 .. command.items.len - 1];
+            self.@"initial-command" = .{ .direct = try builder.toOwnedSlice() };
             return;
         }
     }
@@ -3031,7 +3066,7 @@ pub fn finalize(self: *Config) !void {
             // We don't do this in flatpak because SHELL in Flatpak is always
             // set to /bin/sh.
             if (self.command) |cmd|
-                log.info("shell src=config value={s}", .{cmd})
+                log.info("shell src=config value={}", .{cmd})
             else shell_env: {
                 // Flatpak always gets its shell from outside the sandbox
                 if (internal_os.isFlatpak()) break :shell_env;
@@ -3043,7 +3078,9 @@ pub fn finalize(self: *Config) !void {
 
                 if (std.process.getEnvVarOwned(alloc, "SHELL")) |value| {
                     log.info("default shell source=env value={s}", .{value});
-                    self.command = value;
+
+                    const copy = try alloc.dupeZ(u8, value);
+                    self.command = .{ .shell = copy };
 
                     // If we don't need the working directory, then we can exit now.
                     if (!wd_home) break :command;
@@ -3054,7 +3091,7 @@ pub fn finalize(self: *Config) !void {
                 .windows => {
                     if (self.command == null) {
                         log.warn("no default shell found, will default to using cmd", .{});
-                        self.command = "cmd.exe";
+                        self.command = .{ .shell = "cmd.exe" };
                     }
 
                     if (wd_home) {
@@ -3071,7 +3108,7 @@ pub fn finalize(self: *Config) !void {
                     if (self.command == null) {
                         if (pw.shell) |sh| {
                             log.info("default shell src=passwd value={s}", .{sh});
-                            self.command = sh;
+                            self.command = .{ .shell = sh };
                         }
                     }
 
@@ -3153,13 +3190,13 @@ pub fn parseManuallyHook(
 
         // Build up the command. We don't clean this up because we take
         // ownership in our allocator.
-        var command = std.ArrayList(u8).init(alloc);
+        var command: std.ArrayList([:0]const u8) = .init(alloc);
         errdefer command.deinit();
 
         while (iter.next()) |param| {
-            try self._replay_steps.append(alloc, .{ .arg = try alloc.dupe(u8, param) });
-            try command.appendSlice(param);
-            try command.append(' ');
+            const copy = try alloc.dupeZ(u8, param);
+            try self._replay_steps.append(alloc, .{ .arg = copy });
+            try command.append(copy);
         }
 
         if (command.items.len == 0) {
@@ -3175,9 +3212,8 @@ pub fn parseManuallyHook(
             return false;
         }
 
-        self.@"initial-command" = command.items[0 .. command.items.len - 1];
-
         // See "command" docs for the implied configurations and why.
+        self.@"initial-command" = .{ .direct = command.items };
         self.@"gtk-single-instance" = .false;
         self.@"quit-after-last-window-closed" = true;
         self.@"quit-after-last-window-closed-delay" = null;
@@ -3192,7 +3228,7 @@ pub fn parseManuallyHook(
     // Keep track of our input args for replay
     try self._replay_steps.append(
         alloc,
-        .{ .arg = try alloc.dupe(u8, arg) },
+        .{ .arg = try alloc.dupeZ(u8, arg) },
     );
 
     // If we didn't find a special case, continue parsing normally
@@ -3385,6 +3421,16 @@ fn equalField(comptime T: type, old: T, new: T) bool {
         [:0]const u8,
         => return std.mem.eql(u8, old, new),
 
+        []const [:0]const u8,
+        => {
+            if (old.len != new.len) return false;
+            for (old, new) |a, b| {
+                if (!std.mem.eql(u8, a, b)) return false;
+            }
+
+            return true;
+        },
+
         else => {},
     }
 
@@ -3420,6 +3466,8 @@ fn equalField(comptime T: type, old: T, new: T) bool {
         },
 
         .@"union" => |info| {
+            if (@hasDecl(T, "equal")) return old.equal(new);
+
             const tag_type = info.tag_type.?;
             const old_tag = std.meta.activeTag(old);
             const new_tag = std.meta.activeTag(new);
@@ -3449,7 +3497,7 @@ fn equalField(comptime T: type, old: T, new: T) bool {
 const Replay = struct {
     const Step = union(enum) {
         /// An argument to parse as if it came from the CLI or file.
-        arg: []const u8,
+        arg: [:0]const u8,
 
         /// A base path to expand relative paths against.
         expand: []const u8,
@@ -3489,7 +3537,7 @@ const Replay = struct {
             return switch (self) {
                 .@"-e" => self,
                 .diagnostic => |v| .{ .diagnostic = try v.clone(alloc) },
-                .arg => |v| .{ .arg = try alloc.dupe(u8, v) },
+                .arg => |v| .{ .arg = try alloc.dupeZ(u8, v) },
                 .expand => |v| .{ .expand = try alloc.dupe(u8, v) },
                 .conditional_arg => |v| conditional: {
                     var conds = try alloc.alloc(Conditional, v.conditions.len);
@@ -3893,6 +3941,24 @@ pub const Palette = struct {
 
     /// The actual value that is updated as we parse.
     value: terminal.color.Palette = terminal.color.default,
+
+    /// ghostty_config_palette_s
+    pub const C = extern struct {
+        colors: [265]Color.C,
+    };
+
+    pub fn cval(self: Self) Palette.C {
+        var result: Palette.C = undefined;
+        for (self.value, 0..) |color, i| {
+            result.colors[i] = Color.C{
+                .r = color.r,
+                .g = color.g,
+                .b = color.b,
+            };
+        }
+
+        return result;
+    }
 
     pub fn parseCLI(
         self: *Self,
@@ -4830,6 +4896,13 @@ pub const Keybinds = struct {
                 .{ .jump_to_prompt = 1 },
             );
 
+            // Toggle command palette, matches VSCode
+            try self.set.put(
+                alloc,
+                .{ .key = .{ .translated = .p }, .mods = .{ .super = true, .shift = true } },
+                .{ .toggle_command_palette = {} },
+            );
+
             // Inspector, matching Chromium
             try self.set.put(
                 alloc,
@@ -5677,6 +5750,11 @@ pub const AppNotifications = packed struct {
     @"clipboard-copy": bool = true,
 };
 
+/// See bell-features
+pub const BellFeatures = packed struct {
+    system: bool = false,
+};
+
 /// See mouse-shift-capture
 pub const MouseShiftCapture = enum {
     false,
@@ -6499,12 +6577,6 @@ pub const WindowPadding = struct {
     }
 };
 
-/// See the `gtk-gsk-renderer` config.
-pub const GtkGskRenderer = enum {
-    default,
-    opengl,
-};
-
 test "parse duration" {
     inline for (Duration.units) |unit| {
         var buf: [16]u8 = undefined;
@@ -6634,7 +6706,11 @@ test "parse e: command only" {
 
     var it: TestIterator = .{ .data = &.{"foo"} };
     try testing.expect(!try cfg.parseManuallyHook(alloc, "-e", &it));
-    try testing.expectEqualStrings("foo", cfg.@"initial-command".?);
+
+    const cmd = cfg.@"initial-command".?;
+    try testing.expect(cmd == .direct);
+    try testing.expectEqual(cmd.direct.len, 1);
+    try testing.expectEqualStrings(cmd.direct[0], "foo");
 }
 
 test "parse e: command and args" {
@@ -6645,7 +6721,13 @@ test "parse e: command and args" {
 
     var it: TestIterator = .{ .data = &.{ "echo", "foo", "bar baz" } };
     try testing.expect(!try cfg.parseManuallyHook(alloc, "-e", &it));
-    try testing.expectEqualStrings("echo foo bar baz", cfg.@"initial-command".?);
+
+    const cmd = cfg.@"initial-command".?;
+    try testing.expect(cmd == .direct);
+    try testing.expectEqual(cmd.direct.len, 3);
+    try testing.expectEqualStrings(cmd.direct[0], "echo");
+    try testing.expectEqualStrings(cmd.direct[1], "foo");
+    try testing.expectEqualStrings(cmd.direct[2], "bar baz");
 }
 
 test "clone default" {
