@@ -53,7 +53,8 @@ ExcludeArch:    %{ix86}
 
 BuildRequires:  (zig >= {{{zig_min_version}}} with zig < {{{zig_max_version}}})
 BuildRequires:  zig-rpm-macros >= 0.13.0-4
-BuildRequires:  git, gcc, pkg-config, fdupes, desktop-file-utils, pandoc-cli
+BuildRequires:  git, gcc, pkg-config
+BuildRequires:  fdupes, desktop-file-utils, libappstream-glib, pandoc-cli
 BuildRequires:  pkgconfig(simdutf) >= 5.2.8
 # font backend
 BuildRequires:  pkgconfig(bzip2)
@@ -253,6 +254,7 @@ ZIG_GLOBAL_CACHE_DIR=%{_zig_cache_dir} ./nix/build-support/fetch-zig-cache.sh
 %zig_test
 %endif
 
+appstream-util validate-relax --nonet %{buildroot}%{_metainfodir}/*.xml
 desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 
 %files
@@ -263,6 +265,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{project_id}.desktop
 %{_datadir}/locale/*/LC_MESSAGES/%{project_id}.mo
 %{_iconsdir}/hicolor/*/apps/%{project_id}.png
 %{_mandir}/man{1,5}/%{name}.*
+%{_metainfodir}/*.xml
 
 %if %{with lib}
 %files -n %{library}
