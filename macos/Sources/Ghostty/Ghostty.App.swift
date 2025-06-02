@@ -550,6 +550,9 @@ extension Ghostty {
             case GHOSTTY_ACTION_RING_BELL:
                 ringBell(app, target: target)
 
+            case GHOSTTY_ACTION_CHECK_FOR_UPDATES:
+                checkForUpdates(app)
+
             case GHOSTTY_ACTION_CLOSE_ALL_WINDOWS:
                 fallthrough
             case GHOSTTY_ACTION_TOGGLE_TAB_OVERVIEW:
@@ -586,6 +589,14 @@ extension Ghostty {
             // We want to quit, start that process
             NSApplication.shared.terminate(nil)
             #endif
+        }
+
+        private static func checkForUpdates(
+            _ app: ghostty_app_t
+        ) {
+            if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+                appDelegate.checkForUpdates(nil)
+            }
         }
 
         private static func newWindow(_ app: ghostty_app_t, target: ghostty_target_s) {
@@ -734,7 +745,7 @@ extension Ghostty {
                 guard let surface = target.target.surface else { return }
                 guard let surfaceView = self.surfaceView(from: surface) else { return }
                 guard let mode = FullscreenMode.from(ghostty: raw) else {
-                    Ghostty.logger.warning("unknow fullscreen mode raw=\(raw.rawValue)")
+                    Ghostty.logger.warning("unknown fullscreen mode raw=\(raw.rawValue)")
                     return
                 }
                 NotificationCenter.default.post(
@@ -1071,7 +1082,7 @@ extension Ghostty {
                 guard let surface = target.target.surface else { return }
                 guard let surfaceView = self.surfaceView(from: surface) else { return }
                 guard let window = surfaceView.window as? TerminalWindow else { return }
-                
+
                 switch (mode) {
                 case .on:
                     window.level = .floating

@@ -154,10 +154,6 @@ class AppDelegate: NSObject,
             toggleSecureInput(self)
         }
 
-        // Hook up updater menu
-        menuCheckForUpdates?.target = updaterController
-        menuCheckForUpdates?.action = #selector(SPUStandardUpdaterController.checkForUpdates(_:))
-
         // Initial config loading
         ghosttyConfigDidChange(config: ghostty.config)
 
@@ -374,6 +370,7 @@ class AppDelegate: NSObject,
     private func syncMenuShortcuts(_ config: Ghostty.Config) {
         guard ghostty.readiness == .ready else { return }
 
+        syncMenuShortcut(config, action: "check_for_updates", menuItem: self.menuCheckForUpdates)
         syncMenuShortcut(config, action: "open_config", menuItem: self.menuOpenConfig)
         syncMenuShortcut(config, action: "reload_config", menuItem: self.menuReloadConfig)
         syncMenuShortcut(config, action: "quit", menuItem: self.menuQuit)
@@ -469,17 +466,22 @@ class AppDelegate: NSObject,
         guard NSApp.mainWindow == nil else { return event }
 
         // If this event as-is would result in a key binding then we send it.
-        if let app = ghostty.app,
-           ghostty_app_key_is_binding(
-            app,
-            event.ghosttyKeyEvent(GHOSTTY_ACTION_PRESS)) {
+        if let app = ghostty.app {
+            var ghosttyEvent = event.ghosttyKeyEvent(GHOSTTY_ACTION_PRESS)
+            let match = (event.characters ?? "").withCString { ptr in
+                ghosttyEvent.text = ptr
+                if !ghostty_app_key_is_binding(app, ghosttyEvent) {
+                    return false
+                }
+
+                return ghostty_app_key(app, ghosttyEvent)
+            }
+
             // If the key was handled by Ghostty we stop the event chain. If
             // the key wasn't handled then we let it fall through and continue
             // processing. This is important because some bindings may have no
             // affect at this scope.
-            if (ghostty_app_key(
-                app,
-                event.ghosttyKeyEvent(GHOSTTY_ACTION_PRESS))) {
+            if match {
                 return nil
             }
         }
@@ -784,6 +786,10 @@ class AppDelegate: NSObject,
 
     @IBAction func reloadConfig(_ sender: Any?) {
         ghostty.reloadConfig()
+    }
+
+    @IBAction func checkForUpdates(_ sender: Any?) {
+        updaterController.checkForUpdates(sender)
     }
 
     @IBAction func newWindow(_ sender: Any?) {

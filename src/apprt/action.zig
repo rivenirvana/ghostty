@@ -165,6 +165,9 @@ pub const Action = union(Key) {
     /// Control whether the inspector is shown or hidden.
     inspector: Inspector,
 
+    /// Show the GTK inspector.
+    show_gtk_inspector,
+
     /// The inspector for the given target has changes and should be
     /// rendered at the next opportunity.
     render_inspector,
@@ -255,6 +258,8 @@ pub const Action = union(Key) {
     /// it needs to ring the bell. This is usually a sound or visual effect.
     ring_bell,
 
+    check_for_updates,
+
     /// Sync with: ghostty_action_tag_e
     pub const Key = enum(c_int) {
         quit,
@@ -282,6 +287,7 @@ pub const Action = union(Key) {
         initial_size,
         cell_size,
         inspector,
+        show_gtk_inspector,
         render_inspector,
         desktop_notification,
         set_title,
@@ -301,6 +307,7 @@ pub const Action = union(Key) {
         config_change,
         close_window,
         ring_bell,
+        check_for_updates,
     };
 
     /// Sync with: ghostty_action_u

@@ -287,8 +287,8 @@ fn initPages(
         // Initialize the first set of pages to contain our viewport so that
         // the top of the first page is always the active area.
         node.* = .{
-            .data = Page.initBuf(
-                OffsetBuf.init(page_buf),
+            .data = .initBuf(
+                .init(page_buf),
                 Page.layout(cap),
             ),
         };
@@ -472,7 +472,7 @@ pub fn clone(
             };
 
             // Setup our pools
-            break :alloc try MemoryPool.init(
+            break :alloc try .init(
                 alloc,
                 std.heap.page_allocator,
                 page_count,
@@ -1201,7 +1201,7 @@ const ReflowCursor = struct {
         node.data.size.rows = 1;
         list.pages.insertAfter(self.node, node);
 
-        self.* = ReflowCursor.init(node);
+        self.* = .init(node);
 
         self.new_rows = new_rows;
     }
@@ -1817,7 +1817,7 @@ pub fn grow(self: *PageList) !?*List.Node {
         @memset(buf, 0);
 
         // Initialize our new page and reinsert it as the last
-        first.data = Page.initBuf(OffsetBuf.init(buf), layout);
+        first.data = .initBuf(.init(buf), layout);
         first.data.size.rows = 1;
         self.pages.insertAfter(last, first);
 
@@ -1989,7 +1989,7 @@ fn createPageExt(
     // to undefined, 0xAA.
     if (comptime std.debug.runtime_safety) @memset(page_buf, 0);
 
-    page.* = .{ .data = Page.initBuf(OffsetBuf.init(page_buf), layout) };
+    page.* = .{ .data = .initBuf(.init(page_buf), layout) };
     page.data.size.rows = 0;
 
     if (total_size) |v| {
@@ -3570,6 +3570,74 @@ pub const Pin = struct {
         result.x +|= std.math.cast(size.CellCountInt, n) orelse
             std.math.maxInt(size.CellCountInt);
         return result;
+    }
+
+    /// Move the pin left n columns, stopping at the start of the row.
+    pub fn leftClamp(self: Pin, n: size.CellCountInt) Pin {
+        var result = self;
+        result.x -|= n;
+        return result;
+    }
+
+    /// Move the pin right n columns, stopping at the end of the row.
+    pub fn rightClamp(self: Pin, n: size.CellCountInt) Pin {
+        var result = self;
+        result.x = @min(self.x +| n, self.node.data.size.cols - 1);
+        return result;
+    }
+
+    /// Move the pin left n cells, wrapping to the previous row as needed.
+    ///
+    /// If the offset goes beyond the top of the screen, returns null.
+    ///
+    /// TODO: Unit tests.
+    pub fn leftWrap(self: Pin, n: usize) ?Pin {
+        // NOTE: This assumes that all pages have the same width, which may
+        //       be violated under certain circumstances by incomplete reflow.
+        const cols = self.node.data.size.cols;
+        const remaining_in_row = self.x;
+
+        if (n <= remaining_in_row) return self.left(n);
+
+        const extra_after_remaining = n - remaining_in_row;
+
+        const rows_off = 1 + extra_after_remaining / cols;
+
+        switch (self.upOverflow(rows_off)) {
+            .offset => |v| {
+                var result = v;
+                result.x = @intCast(cols - extra_after_remaining % cols);
+                return result;
+            },
+            .overflow => return null,
+        }
+    }
+
+    /// Move the pin right n cells, wrapping to the next row as needed.
+    ///
+    /// If the offset goes beyond the bottom of the screen, returns null.
+    ///
+    /// TODO: Unit tests.
+    pub fn rightWrap(self: Pin, n: usize) ?Pin {
+        // NOTE: This assumes that all pages have the same width, which may
+        //       be violated under certain circumstances by incomplete reflow.
+        const cols = self.node.data.size.cols;
+        const remaining_in_row = cols - self.x - 1;
+
+        if (n <= remaining_in_row) return self.right(n);
+
+        const extra_after_remaining = n - remaining_in_row;
+
+        const rows_off = 1 + extra_after_remaining / cols;
+
+        switch (self.downOverflow(rows_off)) {
+            .offset => |v| {
+                var result = v;
+                result.x = @intCast(extra_after_remaining % cols - 1);
+                return result;
+            },
+            .overflow => return null,
+        }
     }
 
     /// Move the pin down a certain number of rows, or return null if

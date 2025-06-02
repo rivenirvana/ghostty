@@ -298,6 +298,12 @@ fn actionCommands(action: Action.Key) []const Command {
             .description = "Toggle the inspector.",
         }},
 
+        .show_gtk_inspector => comptime &.{.{
+            .action = .show_gtk_inspector,
+            .title = "Show the GTK Inspector",
+            .description = "Show the GTK inspector.",
+        }},
+
         .open_config => comptime &.{.{
             .action = .open_config,
             .title = "Open Config",
@@ -362,6 +368,12 @@ fn actionCommands(action: Action.Key) []const Command {
             .action = .toggle_secure_input,
             .title = "Toggle Secure Input",
             .description = "Toggle secure input mode.",
+        }},
+
+        .check_for_updates => comptime &.{.{
+            .action = .check_for_updates,
+            .title = "Check for Updates",
+            .description = "Check for updates to the application.",
         }},
 
         .quit => comptime &.{.{
